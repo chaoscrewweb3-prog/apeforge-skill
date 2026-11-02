@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import{registrationClient}from'./forge-registration.mjs';
 /** ApeForge public application-review intake. No package dependencies. */
 import { createHash } from 'node:crypto';
 import { execFile as execFileCallback } from 'node:child_process';
@@ -60,7 +61,7 @@ async function defaultGh(args) {
   return result.stdout;
 }
 
-export function createService({ runGh = defaultGh } = {}) {
+export function createService({ runGh = defaultGh, registry = registrationClient() } = {}) {
   const attempted = new Set();
   const inFlight = new Set();
   async function ghJson(args) {
@@ -76,8 +77,9 @@ export function createService({ runGh = defaultGh } = {}) {
         || !record(repo) || repo.full_name !== REPO || repo.private !== false || repo.has_issues !== true || repo.archived !== false) {
         return problem('intake_unavailable', 'The fixed public intake repository or authenticated GitHub identity is unavailable.');
       }
+      const readiness=await registry.readiness();if(!readiness.ok)return readiness;
       return { ok: true, intakeAvailable: true, authenticatedAs: user.login, repository: REPO_URL,
-        intakeType: 'public-github-issue-review', registrationAvailable: false, membershipAvailable: false };
+        intakeType: 'public-github-issue-review', registrationAvailable: true, membershipAvailable: false };
     } catch {
       return problem('intake_unavailable', 'Use your own existing GitHub CLI sign-in; the public intake repository must be available. No credential details are returned.');
     }
@@ -92,7 +94,8 @@ export function createService({ runGh = defaultGh } = {}) {
         && issueUrl(issue.url) && typeof issue.body === 'string' && issue.body.split('\n').includes(markerFor(requestId)))
         .map(issue => ({ number: issue.number, url: issue.url }));
       if (issues.length === 100) return problem('reconciliation_incomplete', 'The bounded search reached 100 results; do not submit until manually reconciled.', { requestId, matches });
-      return { ok: true, requestId, matches, searchIsEventuallyConsistent: true,
+      const registration=matches.length===1?await registry.reconcile(matches[0].number,requestId):null;
+      return { ok: true, requestId, matches, registration, searchIsEventuallyConsistent: true,
         nextAction: matches.length ? 'Review the existing issue; do not create another.' : 'No indexed exact match found. Absence is not proof that an earlier attempt failed.' };
     } catch {
       return problem('reconciliation_unavailable', 'GitHub readback failed; do not retry an ambiguous submission.', { requestId });
@@ -116,7 +119,8 @@ export function createService({ runGh = defaultGh } = {}) {
       if (!ready.ok) return ready;
       const existing = await reconcile(requestId);
       if (!existing.ok) return existing;
-      if (existing.matches.length) return { ok: true, requestId, state: 'existing-review-request', issues: existing.matches, registrationState: 'not-registered' };
+      if(existing.matches.length>1)return problem('multiple_review_requests','Reconcile multiple source issues before registration.',{requestId,issues:existing.matches});
+      if(existing.matches.length===1){const registered=await registry.register(existing.matches[0].number,requestId);return{...registered,requestId,issueUrl:existing.matches[0].url,state:registered.ok?'registered-applicant':'application-saved-registration-pending'};}
       directory = await mkdtemp(join(tmpdir(), 'apeforge-application-'));
       await chmod(directory, 0o700);
       const bodyPath = join(directory, 'application.md');
@@ -130,9 +134,8 @@ export function createService({ runGh = defaultGh } = {}) {
       }
       const url = typeof output === 'string' ? output.trim() : '';
       if (!issueUrl(url)) return problem('submission_ambiguous', 'GitHub returned no recognized issue receipt. Reconcile before any further action.', { requestId });
-      return { ok: true, requestId, state: 'submitted-for-review', issueUrl: url,
-        registrationState: 'not-registered', membershipState: 'not-approved',
-        note: 'A durable public review request, not registration, a listing, payment or membership.' };
+      const registered=await registry.register(Number(url.split('/').at(-1)),requestId);
+      return{...registered,requestId,issueUrl:url,state:registered.ok?'registered-applicant':'application-saved-registration-pending'};
     } catch {
       return problem('preparation_failed', 'Local preparation failed; no credential details are returned.', { requestId });
     } finally {
@@ -140,7 +143,7 @@ export function createService({ runGh = defaultGh } = {}) {
       if (directory) await rm(directory, { recursive: true, force: true }).catch(() => {});
     }
   }
-  return { readiness, reconcile, submit };
+  return { readiness, reconcile, submit, async register(args){if(!ownKeys(args,['issueNumber','requestId','publicProfileConsent'])||args.publicProfileConsent!==true)return problem('public_consent_required','Authorize public Applicant registration.');return registry.register(args.issueNumber,args.requestId);} };
 }
 
 const applicationInput = { type: 'object', description: 'Raw public profile using application.example.json fields; no credentials or private wallet keys.' };
@@ -154,7 +157,8 @@ export const TOOLS = [
   tool('forge_validate_application', 'Validate a raw public profile offline. Nothing is sent.', { application: applicationInput }, ['application']),
   tool('forge_prepare_application', 'Prepare public review issue + stable requestId offline. Save requestId before submission.', { application: applicationInput }, ['application']),
   tool('forge_reconcile_application', 'Bounded exact-marker search of your own issues in the fixed repo; indexing is eventually consistent.', { requestId: { type: 'string', pattern: '^forge-v1-[a-f0-9]{64}$' } }, ['requestId']),
-  tool('forge_submit_application', 'Publish one public application-review issue, only with explicit public profile consent. Not registration or membership; no automatic retry.',
+  tool('forge_register_application','Register an existing public application issue in the ApeForge database as Applicant; safe same-source reconciliation, never membership.',{issueNumber:{type:'integer',minimum:1,maximum:1000000000},requestId:{type:'string',pattern:'^forge-v1-[a-f0-9]{64}$'},publicProfileConsent:{type:'boolean',const:true}},['issueNumber','requestId','publicProfileConsent'],false),
+  tool('forge_submit_application', 'Publish one public application-review issue, only with explicit public profile consent. Then register the verified Applicant in ApeForge; not membership. No automatic retry.',
     { application: applicationInput, requestId: { type: 'string', pattern: '^forge-v1-[a-f0-9]{64}$' }, publicProfileConsent: { type: 'boolean', const: true } }, ['application', 'requestId', 'publicProfileConsent'], false)
 ];
 
@@ -183,8 +187,8 @@ export function createRpc(service = createService()) {
       }
       initialized = true;
       return { jsonrpc: '2.0', id, result: { protocolVersion: PROTOCOL_VERSION, capabilities: { tools: {} },
-        serverInfo: { name: 'apeforge-forge-agent', version: '1.0.0' },
-        instructions: 'Public GitHub application-review intake only. No registry registration, automatic membership, wallet signing, payments or locks.' } };
+        serverInfo: { name: 'apeforge-forge-agent', version: '1.1.0' },
+        instructions: 'Public agent application and durable Applicant registration. No automatic membership, wallet signing, payments or locks.' } };
     }
     if (!ready) return error(id, -32002, 'Initialize and send notifications/initialized first');
     if (message.method === 'tools/list') {
@@ -205,10 +209,11 @@ export function createRpc(service = createService()) {
       switch (params.name) {
         case 'forge_capabilities': result = { ok: true, offlinePreparation: true, publicIssueIntake: true,
           repository: REPO_URL, requiresOwnGhAuth: true, requiresPublicConsent: true,
-          registrationAvailable: false, membershipAvailable: false, paymentAvailable: false, lockAvailable: false,
+          registrationSupported:true, registrationAvailable:null, membershipAvailable:false, paymentAvailable:false, lockAvailable: false,
           idempotency: 'stable-marker-best-effort-not-atomic', updateAvailable: false }; break;
         case 'forge_readiness': result = await service.readiness(); break;
         case 'forge_reconcile_application': result = await service.reconcile(args.requestId); break;
+        case 'forge_register_application': result=await service.register(args);break;
         case 'forge_submit_application': result = await service.submit(args); break;
         case 'forge_prepare_application': result = prepare(args.application); break;
         case 'forge_validate_application': {

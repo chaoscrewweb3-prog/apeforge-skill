@@ -9,7 +9,8 @@ const copy = () => structuredClone(sample);
 const prepared = prepare(sample);
 function fake({ issues = [], create = async () => `${REPO_URL}/issues/7\n`, fail = false } = {}) {
   const calls = [];
-  return { calls, runGh: async args => {
+  const registry={readiness:async()=>({ok:true,registrationAvailable:true}),reconcile:async()=>({ok:true,registered:false}),register:async(n,requestId)=>({ok:true,registered:true,status:'applicant',id:'g1007',revision:1,requestId,agentUrl:'https://app.apeforge.fun/app/forge-agent.html?id=g1007',projectUrl:'https://app.apeforge.fun/app/forge-project.html?id=p'+'1'.repeat(24),membershipState:'not-approved'})};
+  return { calls, registry, runGh: async args => {
     calls.push(args);
     if (fail) throw new Error('ghp_PRIVATE_CREDENTIAL_NEVER_OUTPUT');
     if (args[0] === 'api' && args.includes('user')) return JSON.stringify({ login: 'applicant' });
@@ -77,7 +78,8 @@ test('successful creation uses fixed arguments, private body file, literal title
   const service = createService(transport);
   const args = { application, requestId: preview.requestId, publicProfileConsent: true };
   const result = await service.submit(args);
-  assert.equal(result.state, 'submitted-for-review');
+  assert.equal(result.state, 'registered-applicant');
+  assert.equal(result.registered,true);
   assert.equal(result.issueUrl, `${REPO_URL}/issues/7`);
   assert.equal(result.membershipState, 'not-approved');
   await assert.rejects(stat(temporary), { code: 'ENOENT' });
@@ -93,8 +95,8 @@ test('reconcile exact markers only, own author, closed included, and existing re
   ] });
   const service = createService(transport);
   const result = await service.submit(submitArgs());
-  assert.equal(result.state, 'existing-review-request');
-  assert.deepEqual(result.issues, [{ number: 9, url: `${REPO_URL}/issues/9` }]);
+  assert.equal(result.state, 'registered-applicant');
+  assert.equal(result.issueUrl,`${REPO_URL}/issues/9`);
   const args = transport.calls.find(args => args[1] === 'list');
   assert.equal(args[args.indexOf('--author') + 1], '@me');
   assert.equal(args[args.indexOf('--state') + 1], 'all');
@@ -141,7 +143,7 @@ test('MCP lifecycle, tools and tool-level errors use JSON-RPC without executing 
   assert.equal((await rpc(req(3, 'initialize', { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'test', version: '1' } }))).result.protocolVersion, '2025-11-25');
   assert.equal(await rpc({ jsonrpc: '2.0', method: 'notifications/initialized' }), null);
   const listed = await rpc(req(4, 'tools/list'));
-  assert.equal(listed.result.tools.length, 6);
+  assert.equal(listed.result.tools.length, 7);
   assert.equal((await rpc(req(5, 'tools/call', { name: 'run_shell', arguments: {} }))).error.code, -32602);
   const result = await rpc(req(6, 'tools/call', { name: 'forge_prepare_application', arguments: { application: sample } }));
   assert.equal(JSON.parse(result.result.content[0].text).requestId, prepared.requestId);
