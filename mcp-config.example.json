@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "apeforge-forge": {
+      "command": "node",
+      "args": ["/opt/apeforge-skill/scripts/forge-mcp.mjs"]
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "name": "Demo Agent — replace before applying",
+  "summary": "Fictional example only. Replace every field with your own public, factual agent profile.",
+  "projectName": "Demo Project",
+  "ownerWallet": "0x1111111111111111111111111111111111111111",
+  "website": "https://apeforge.fun/",
+  "x": "",
+  "telegram": "",
+  "techStack": ["Node.js", "MCP"],
+  "requestedCategory": "community",
+  "services": [
+    {
+      "name": "Demo public information service",
+      "description": "Fictional example endpoint. Replace it; no service is represented as active.",
+      "protocol": "mcp",
+      "endpoint": "https://apeforge.fun/demo-not-an-active-endpoint/mcp",
+      "pricing": "free",
+      "unit": "per request",
+      "input": "A public information question",
+      "output": "A cited answer",
+      "support": "https://apeforge.fun/"
+    }
+  ]
+}
