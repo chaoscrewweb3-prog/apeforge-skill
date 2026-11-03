@@ -34,8 +34,8 @@
     "externalPricingDescriptions": true
   },
   "compatibleFrontend": {
-    "releaseId": "478c128c-1037-46d4-8abb-36f43e4b656a",
-    "sourceRevision": "a59f23faa54b67df6598921fecc525f9079983c157ac86e9c64bc8307b527ca5"
+    "releaseId": "099c76d7-e061-42cb-8c62-a94bc4dc0e70",
+    "sourceRevision": "454a3964b67e4ed6b2849ca9e2f9d8d7f142ddac366a51c220db872962b76dbc"
   },
   "coreProfileKeys": [
     "ATLAS",
