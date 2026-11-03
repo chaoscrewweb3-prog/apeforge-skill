@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile, stat } from 'node:fs/promises';
 import { Readable, Writable } from 'node:stream';
 import { prepare, createService, createRpc, startStdio, REPO, REPO_URL } from '../scripts/forge-mcp.mjs';
+import { profileClient, profileReference, CORE_IDS } from '../scripts/forge-profile.mjs';
 
 const sample = JSON.parse(await readFile(new URL('../application.example.json', import.meta.url), 'utf8'));
 const copy = () => structuredClone(sample);
@@ -26,6 +27,7 @@ const submitArgs = () => ({ application: copy(), requestId: prepared.requestId, 
 test('canonical valid prep is offline, normalizes field order and does not grant membership', () => {
   assert.equal(prepared.ok, true);
   assert.match(prepared.requestId, /^forge-v1-[a-f0-9]{64}$/);
+  assert.equal(prepared.requestId, 'forge-v1-b2ecde36f7088aa684c8619f5145f7192117716e1f50b5305086b8532a0fff55');
   assert.equal(prepared.registrationState, 'not-registered');
   assert.equal(prepare(Object.fromEntries(Object.entries(sample).reverse())).requestId, prepared.requestId);
   const edited = copy(); edited.summary += ' More';
@@ -143,7 +145,8 @@ test('MCP lifecycle, tools and tool-level errors use JSON-RPC without executing 
   assert.equal((await rpc(req(3, 'initialize', { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'test', version: '1' } }))).result.protocolVersion, '2025-11-25');
   assert.equal(await rpc({ jsonrpc: '2.0', method: 'notifications/initialized' }), null);
   const listed = await rpc(req(4, 'tools/list'));
-  assert.equal(listed.result.tools.length, 7);
+  assert.equal(listed.result.tools.length, 9);
+  for(const name of ['forge_capabilities','forge_readiness','forge_validate_application','forge_prepare_application','forge_reconcile_application','forge_register_application','forge_submit_application','forge_profile_reference','forge_get_registered_profile'])assert(listed.result.tools.some(t=>t.name===name));
   assert.equal((await rpc(req(5, 'tools/call', { name: 'run_shell', arguments: {} }))).error.code, -32602);
   const result = await rpc(req(6, 'tools/call', { name: 'forge_prepare_application', arguments: { application: sample } }));
   assert.equal(JSON.parse(result.result.content[0].text).requestId, prepared.requestId);
@@ -160,4 +163,57 @@ test('stdio malformed, batch, oversize and incomplete input return bounded proto
   assert.equal(rows.length, 4);
   assert.deepEqual(rows.map(item => item.error.code).sort(), [-32700, -32700, -32700, -32600].sort());
   assert.equal(out.length < 1024, true);
+});
+
+const profileUrl='https://app.apeforge.fun/api/forge/v1/agents/g123';
+function publicProfile(services=sample.services){return {id:'g123',revision:2,name:sample.name,overview:sample.summary,project:{id:'p'+'a'.repeat(24),name:sample.projectName},membership:{status:'applicant'},profile:{...copy(),services},source:{type:'github-public-application',url:REPO_URL+'/issues/7'},createdAt:'2026-11-02T12:00:00.000Z',updatedAt:'2026-11-03T12:00:00.000Z'};}
+function response(value,{status=200,url=profileUrl,headers={},redirected=false}={}){const r=new Response(typeof value==='string'?value:JSON.stringify(value),{status,headers:{'Content-Type':'application/json',...headers}});Object.defineProperties(r,{url:{value:url},redirected:{value:redirected}});return r;}
+
+test('offline references accept exactly known Core keys with fragment routes, never imply Core retrieval',()=>{
+  assert.equal(CORE_IDS.length,15);
+  for(const key of CORE_IDS){const r=profileReference('core:'+key);assert.equal(r.profileUrl,'https://app.apeforge.fun/app/forge-agent.html#core='+key);assert.equal(r.dataRetrieval,'not_implemented');}
+  assert.equal(profileReference('core:UNKNOWN').ok,false);
+  assert.equal(profileReference('https://evil.invalid').ok,false);
+  assert.equal(profileReference('g123').profileUrl,'https://app.apeforge.fun/app/forge-agent.html?id=g123');
+});
+
+test('registered read uses fixed credentialless GET, preserves public declarations and unknown metrics',async()=>{
+  const client=profileClient(async(url,options)=>{assert.equal(url,profileUrl);assert.equal(options.method,'GET');assert.equal(options.credentials,'omit');assert.equal(options.redirect,'error');assert.equal(options.cache,'no-store');assert(options.signal instanceof AbortSignal);assert.deepEqual(options.headers,{Accept:'application/json'});assert.equal(options.body,undefined);return response(publicProfile());});
+  const r=await client.get('g123');assert.equal(r.ok,true);assert.equal(r.schemaVersion,1);assert.equal(r.profileRevision,2);assert.equal(r.declaredServiceCount,1);assert.equal(r.source.kind,'applicant-declared');assert.deepEqual(r.publicRecord,publicProfile());
+  for(const name of ['completedJobs','agentsHired','successRate','responseTime','uptime']){assert.equal(r.metrics[name].value,null);assert.equal(r.metrics[name].status,'not_connected');assert.equal(r.metrics[name].sampleCount,null);}
+  assert.deepEqual(r.metrics.serviceRevenueReceived.amounts,[]);assert.equal(r.metrics.serviceRevenueReceived.status,'not_connected');assert.equal(r.coverage.complete,false);
+});
+
+test('genuine empty declared service list is zero, never zero jobs or zero earnings',async()=>{
+  const r=await profileClient(async()=>response(publicProfile([]))).get('g123');assert.equal(r.ok,true);assert.equal(r.declaredServiceCount,0);assert.equal(r.metrics.completedJobs.value,null);assert.equal(r.metrics.serviceRevenueReceived.status,'not_connected');
+});
+
+test('invalid IDs/Core reads invoke no transport and not-found remains unknown',async()=>{
+  let calls=0;const c=profileClient(async()=>{calls++;return response({}, {status:404});});
+  for(const id of ['core:ATLAS','../g123','g1?x=2','https://evil.invalid',3])assert.equal((await c.get(id)).code,'invalid_agent_id');
+  assert.equal(calls,0);const r=await c.get('g123');assert.equal(r.code,'profile_not_found');assert.equal(r.profileState,'unknown');assert.equal(r.metrics,undefined);
+});
+
+test('malformed records, wrong identities and content type never become success',async()=>{
+  for(const change of [v=>v.id='g456',v=>v.revision=0,v=>v.profile.services=[{}],v=>v.source.url='https://evil.invalid',v=>v.membership.status='suspended']){const value=publicProfile();change(value);assert.equal((await profileClient(async()=>response(value)).get('g123')).code,'invalid_profile_response');}
+  assert.equal((await profileClient(async()=>response('{')).get('g123')).ok,false);
+  assert.equal((await profileClient(async()=>response(publicProfile(),{headers:{'Content-Type':'text/html'}})).get('g123')).ok,false);
+});
+
+test('oversized declared or streamed bodies are rejected, not parsed as empty history',async()=>{
+  for(const r of [response('{}',{headers:{'Content-Length':'49153'}}),response('x'.repeat(49153))]){const result=await profileClient(async()=>r).get('g123');assert.equal(result.code,'profile_too_large');assert.equal(result.profileState,'unknown');}
+});
+
+test('redirects and foreign final origins are rejected even by a nonconforming fetcher',async()=>{
+  for(const options of [{url:'https://evil.invalid/api/forge/v1/agents/g123'},{redirected:true},{status:302}])assert.equal((await profileClient(async()=>response(publicProfile(),options)).get('g123')).code,'profile_response_rejected');
+});
+
+test('timeout/provider failures return sanitized unknown, never echo diagnostics',async()=>{
+  for(const error of [new DOMException('private diagnostic','TimeoutError'),new Error('Bearer SECRET')]){const result=await profileClient(async()=>{throw error;}).get('g123');assert.equal(result.code,'profile_unavailable');assert.equal(result.profileState,'unknown');assert(!JSON.stringify(result).includes('SECRET'));assert(!JSON.stringify(result).includes('private diagnostic'));}
+});
+
+test('actual stdio handshake advertises 1.2.0, nine tools and separate schema/feature versions',async()=>{
+  const messages=[{jsonrpc:'2.0',id:1,method:'initialize',params:{protocolVersion:'2025-11-25',capabilities:{},clientInfo:{name:'test',version:'1'}}},{jsonrpc:'2.0',method:'notifications/initialized'},{jsonrpc:'2.0',id:2,method:'tools/list'},{jsonrpc:'2.0',id:3,method:'tools/call',params:{name:'forge_capabilities',arguments:{}}},{jsonrpc:'2.0',id:4,method:'tools/call',params:{name:'forge_profile_reference',arguments:{id:'core:MUSE'}}}];
+  let out='';await startStdio(Readable.from(messages.map(v=>JSON.stringify(v)+'\n')),new Writable({write(chunk,encoding,done){out+=chunk;done();}}));const rows=out.trim().split('\n').map(JSON.parse);
+  assert.equal(rows[0].result.serverInfo.version,'1.2.0');assert.equal(rows[0].result.protocolVersion,'2025-11-25');assert.equal(rows[1].result.tools.length,9);const c=JSON.parse(rows[2].result.content[0].text);assert.equal(c.kitVersion,'1.2.0');assert.equal(c.applicationSchema,1);assert.equal(c.publicProfileSchema,1);assert.equal(c.coreProfileRead,false);assert.equal(c.publicJobFeed,false);assert.equal(c.publicRevenueFeed,false);assert.equal(c.acpReadAdapter,false);assert.equal(c.paymentAvailable,false);assert.equal(c.updateAvailable,false);assert.equal(JSON.parse(rows[3].result.content[0].text).dataRetrieval,'not_implemented');
 });

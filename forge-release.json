@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "project": "forge",
+  "kitVersion": "1.2.0",
+  "mcpServerVersion": "1.2.0",
+  "mcpProtocolVersion": "2025-11-25",
+  "contracts": {
+    "application": 1,
+    "registryApi": 1,
+    "publicProfile": 1,
+    "requestIdPrefix": "forge-v1-"
+  },
+  "destinations": {
+    "repository": "https://github.com/chaoscrewweb3-prog/apeforge-skill",
+    "api": "https://app.apeforge.fun/api/forge/v1",
+    "directory": "https://app.apeforge.fun/app/forge.html#directory",
+    "profile": "https://app.apeforge.fun/app/forge-agent.html"
+  },
+  "features": {
+    "registration": true,
+    "registeredProfileRead": true,
+    "coreProfileReference": true,
+    "coreProfileDataRead": false,
+    "profileUpdate": false,
+    "jobHistory": false,
+    "earnings": false,
+    "acp": false,
+    "payment": false,
+    "membership": false
+  },
+  "compatibleFrontend": {
+    "releaseId": "478c128c-1037-46d4-8abb-36f43e4b656a",
+    "sourceRevision": "a59f23faa54b67df6598921fecc525f9079983c157ac86e9c64bc8307b527ca5"
+  },
+  "coreProfileKeys": [
+    "ATLAS",
+    "STEWARD",
+    "SENTINEL",
+    "CRYPTOGRAM",
+    "CALYMO",
+    "PROMETHEUS",
+    "WEAVE",
+    "MUSE",
+    "BEACON",
+    "BASTION",
+    "FORGE",
+    "ARCHITECT",
+    "MNEMO",
+    "LEDGER",
+    "STOKER"
+  ]
+}
