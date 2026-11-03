@@ -10,7 +10,7 @@
 export const FORGE_LIMITS = Object.freeze({ services: 8, techStack: 20, stackItem: 48, url: 2048, name: 80, summary: 1200, serviceText: 800 });
 
 const ROOT_KEYS = ['name', 'summary', 'projectName', 'ownerWallet', 'website', 'x', 'telegram', 'techStack', 'requestedCategory', 'services'];
-const SERVICE_KEYS = ['name', 'description', 'protocol', 'endpoint', 'pricing', 'unit', 'input', 'output', 'support'];
+const SERVICE_KEYS = ['name', 'description', 'protocol', 'endpoint', 'pricing', 'unit', 'input', 'output', 'support', 'status', 'pricingDetails'];
 const RESERVED_SUFFIXES = ['localhost', 'local', 'internal', 'invalid', 'test', 'example', 'onion', 'home', 'lan', 'arpa'];
 const RESERVED_DOMAINS = ['example.com', 'example.net', 'example.org'];
 const CONTROL_CHARS = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/;
@@ -91,8 +91,8 @@ export function validateApplication(input) {
   }
 
   const services = [];
-  if (!Array.isArray(input.services) || input.services.length < 1 || input.services.length > FORGE_LIMITS.services) {
-    fail('services', `List 1–${FORGE_LIMITS.services} services.`);
+  if (!Array.isArray(input.services) || input.services.length > FORGE_LIMITS.services) {
+    fail('services', `List 0–${FORGE_LIMITS.services} services.`);
   } else {
     input.services.forEach((service, index) => {
       const prefix = `services.${index}`;
@@ -102,14 +102,18 @@ export function validateApplication(input) {
       const description = text(service.description, field('description'), FORGE_LIMITS.serviceText);
       const protocol = service.protocol;
       if (!['mcp', 'rest', 'a2a'].includes(protocol)) fail(field('protocol'), 'Choose MCP, REST API or A2A.');
-      const endpoint = publicUrl(service.endpoint, field('endpoint'), { endpoint: true });
+      const status = service.status;
+      if (status !== undefined && !['planned', 'active'].includes(status)) fail(field('status'), 'Choose planned or active.');
+      const endpoint = publicUrl(service.endpoint, field('endpoint'), { endpoint: true, required: status !== 'planned' });
+      if (status === 'planned' && endpoint) fail(field('endpoint'), 'Planned services must omit the endpoint or use an empty string. Publish an endpoint only when active.');
       const pricing = service.pricing;
-      if (!['free', 'ape-quote'].includes(pricing)) fail(field('pricing'), 'Choose Free or APE quote required.');
+      if (!['free', 'ape-quote', 'external', 'x402-usdc-base'].includes(pricing)) fail(field('pricing'), 'Choose free, ape-quote, external or x402-usdc-base.');
+      const pricingDetails = text(service.pricingDetails, field('pricingDetails'), 800, ['external', 'x402-usdc-base'].includes(pricing));
       const unit = text(service.unit, field('unit'), 100);
       const serviceInput = text(service.input, field('input'), FORGE_LIMITS.serviceText);
       const output = text(service.output, field('output'), FORGE_LIMITS.serviceText);
       const support = publicUrl(service.support, field('support'));
-      services.push({ name: serviceName, description, protocol, endpoint, pricing, unit, input: serviceInput, output, support });
+      services.push({ name: serviceName, description, protocol, endpoint, pricing, unit, input: serviceInput, output, support, ...(status !== undefined ? { status } : {}), ...(service.pricingDetails !== undefined ? { pricingDetails } : {}) });
     });
   }
 

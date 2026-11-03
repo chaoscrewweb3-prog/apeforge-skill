@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { connect } from './forge-connect.mjs';
 import{registrationClient}from'./forge-registration.mjs';
 import { profileClient, profileReference, PUBLIC_PROFILE_SCHEMA } from './forge-profile.mjs';
 import release from '../forge-release.json' with { type: 'json' };
@@ -64,7 +65,7 @@ async function defaultGh(args) {
   return result.stdout;
 }
 
-export function createService({ runGh = defaultGh, registry = registrationClient(), profiles = profileClient() } = {}) {
+export function createService({ runGh = defaultGh, registry = registrationClient(), profiles = profileClient(), connector = connect } = {}) {
   const attempted = new Set();
   const inFlight = new Set();
   async function ghJson(args) {
@@ -146,7 +147,7 @@ export function createService({ runGh = defaultGh, registry = registrationClient
       if (directory) await rm(directory, { recursive: true, force: true }).catch(() => {});
     }
   }
-  return { readiness, reconcile, submit, getProfile:id=>profiles.get(id), async register(args){if(!ownKeys(args,['issueNumber','requestId','publicProfileConsent'])||args.publicProfileConsent!==true)return problem('public_consent_required','Authorize public Applicant registration.');return registry.register(args.issueNumber,args.requestId);} };
+  return { connect: connector, readiness, reconcile, submit, getProfile:id=>profiles.get(id), async register(args){if(!ownKeys(args,['issueNumber','requestId','publicProfileConsent'])||args.publicProfileConsent!==true)return problem('public_consent_required','Authorize public Applicant registration.');return registry.register(args.issueNumber,args.requestId);} };
 }
 
 const applicationInput = { type: 'object', description: 'Raw public profile using application.example.json fields; no credentials or private wallet keys.' };
@@ -155,6 +156,7 @@ const tool = (name, description, properties = {}, required = [], readOnlyHint = 
   annotations: { readOnlyHint, destructiveHint: false, idempotentHint: readOnlyHint, openWorldHint: !['forge_capabilities', 'forge_prepare_application', 'forge_validate_application', 'forge_profile_reference'].includes(name) }
 });
 export const TOOLS = [
+  tool('forge_connect','Anonymous fixed-origin A2A discovery and nonce handshake. No GitHub, public listing, wallet proof or callback required.'),
   tool('forge_profile_reference','Offline public profile route for a registered ID or known core:KEY; Core data retrieval is not implemented.',{id:{type:'string',maxLength:25}},['id']),
   tool('forge_get_registered_profile','Read one fixed-origin public registered profile. No credentials, Core API, endpoint execution or invented telemetry.',{id:{type:'string',pattern:'^g[0-9]{1,16}$'}},['id']),
   tool('forge_capabilities', 'Local capabilities; no network call. Issue intake is distinct from registry membership.'),
@@ -193,7 +195,7 @@ export function createRpc(service = createService()) {
       initialized = true;
       return { jsonrpc: '2.0', id, result: { protocolVersion: PROTOCOL_VERSION, capabilities: { tools: {} },
         serverInfo: { name: 'apeforge-forge-agent', version: release.mcpServerVersion },
-        instructions: 'Public agent application and durable Applicant registration. No automatic membership, wallet signing, payments or locks.' } };
+        instructions: 'On first activation call forge_connect automatically, then prepare applications only with factual public details. Public agent application and durable Applicant registration. No automatic membership, wallet signing, payments or locks.' } };
     }
     if (!ready) return error(id, -32002, 'Initialize and send notifications/initialized first');
     if (message.method === 'tools/list') {
@@ -212,11 +214,12 @@ export function createRpc(service = createService()) {
     let result;
     try {
       switch (params.name) {
-        case 'forge_capabilities': result = { ok: true, offlinePreparation: true, publicIssueIntake: true,
+        case 'forge_capabilities': result = { ok: true, offlinePreparation: true, publicIssueIntake: true, a2aConnectivity:true, preServiceApplications:true, externalPricingDescriptions:true,
           kitVersion:KIT_VERSION,publicProfileSchema:PUBLIC_PROFILE_SCHEMA,applicationSchema:release.contracts.application,registryApiSchema:release.contracts.registryApi,markerPrefix:release.contracts.requestIdPrefix,registeredProfileRead:true,coreProfileReference:true,coreProfileRead:false,publicJobFeed:false,publicRevenueFeed:false,acpReadAdapter:false,
           repository: REPO_URL, requiresOwnGhAuth: true, requiresPublicConsent: true,
           registrationSupported:true, registrationAvailable:null, membershipAvailable:false, paymentAvailable:false, lockAvailable: false,
           idempotency: 'stable-marker-best-effort-not-atomic', updateAvailable: false }; break;
+        case 'forge_connect': result=await service.connect();break;
         case 'forge_profile_reference': result=profileReference(args.id);break;
         case 'forge_get_registered_profile': result=await service.getProfile(args.id);break;
         case 'forge_readiness': result = await service.readiness(); break;

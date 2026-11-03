@@ -20,7 +20,7 @@ function valid(value,id) {
     &&record(value.membership)&&['applicant','community'].includes(value.membership.status)
     &&record(p)&&text(p.name,80)&&p.name===value.name&&text(p.summary,1200)&&/^0x[a-fA-F0-9]{40}$/.test(p.ownerWallet)
     &&Array.isArray(p.techStack)&&p.techStack.length<=20&&p.techStack.every(t=>text(t,48))
-    &&Array.isArray(p.services)&&p.services.length<=8&&p.services.every(v=>record(v)&&text(v.name,80)&&text(v.description,800)&&['mcp','rest','a2a'].includes(v.protocol)&&text(v.endpoint,2048)&&['free','ape-quote'].includes(v.pricing)&&text(v.unit,100)&&text(v.input,800)&&text(v.output,800)&&text(v.support,2048))
+    &&Array.isArray(p.services)&&p.services.length<=8&&p.services.every(v=>record(v)&&text(v.name,80)&&text(v.description,800)&&['mcp','rest','a2a'].includes(v.protocol)&&text(v.endpoint,2048)&&['free','ape-quote','external','x402-usdc-base'].includes(v.pricing)&&(!('status' in v)||['planned','active'].includes(v.status))&&(!('pricingDetails' in v)||text(v.pricingDetails,800))&&text(v.unit,100)&&text(v.input,800)&&text(v.output,800)&&text(v.support,2048))
     &&record(s)&&s.type==='github-public-application'&&/^https:\/\/github\.com\/chaoscrewweb3-prog\/apeforge-skill\/issues\/[1-9][0-9]{0,9}$/.test(s.url)
     &&typeof value.createdAt==='string'&&Number.isFinite(Date.parse(value.createdAt))&&typeof value.updatedAt==='string'&&Number.isFinite(Date.parse(value.updatedAt));
 }
