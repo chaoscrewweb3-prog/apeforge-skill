@@ -110,8 +110,6 @@ export function createPeer({ binding, privateKey, clock = Date.now }) {
     const issuedAt = headers['x-forge-time']; nonce = headers['x-forge-nonce'];
     if (headers['x-forge-session'] !== sessionId || !/^[0-9]{1,12}$/.test(issuedAt || '') || !/^[a-f0-9]{32}$/.test(nonce || '') || Math.abs(clock() - Number(issuedAt) * 1000) > 60000 || !verify(remote.publicKey, requestPayload(remote, local, headers, body), headers['x-forge-signature'])) return fail(401, 'authentication_failed', -32099);
     authenticated = remote;
-    if (headers['a2a-version'] !== VERSION) return fail(400, 'version_not_supported', -32009);
-    if (headers['a2a-extensions'] !== EXTENSION) return fail(400, 'required_extension_missing', -32602);
     const nonceKey = remote.agentId + ':' + remote.keyId + ':' + nonce;
     if (nonces.has(nonceKey)) return fail(409, 'replay_rejected', -32099);
     if (nonces.size >= 20000) return fail(429, 'capacity_limit', -32099);
@@ -124,6 +122,8 @@ export function createPeer({ binding, privateKey, clock = Date.now }) {
     try { rpc = JSON.parse(body); } catch { return fail(400, 'invalid_json', -32700); }
     if (!own(rpc, ['jsonrpc', 'id', 'method', 'params']) || rpc.jsonrpc !== '2.0' || !(id(rpc.id) || Number.isSafeInteger(rpc.id)) || typeof rpc.method !== 'string') return fail(400, 'invalid_request', -32600);
     rpcId = rpc.id;
+    if (headers['a2a-version'] !== VERSION) return fail(400, 'version_not_supported', -32009);
+    if (headers['a2a-extensions'] !== EXTENSION) return fail(400, 'required_extension_missing', -32602);
     const scope = remote.agentId + ':' + remote.keyId + ':' + grantRecord.generation;
     const matching = t => t.scope === scope;
     if (rpc.method === 'SendMessage') {

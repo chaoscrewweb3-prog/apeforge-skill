@@ -115,8 +115,9 @@ test('time, protocol and session fencing include process restart', () => {
   const req = makeRequest(a.binding, a.privateKey, b.binding, message(), { clock });
   const fresh = createPeer({ binding: b.binding, privateKey: b.privateKey, clock }); fresh.grant(a.binding);
   assert.equal(fresh.dispatch(req).status, 401);
-  assert.equal(b.peer.dispatch({ ...req, headers: { ...req.headers, 'a2a-version': '0.3.0' } }).status, 400);
-  assert.equal(b.peer.dispatch({ ...req, headers: { ...req.headers, 'a2a-extensions': '' } }).status, 400);
+  const versionError=b.peer.dispatch({ ...req, headers: { ...req.headers, 'a2a-version': '0.3.0' } });
+  assert.equal(versionError.status,400);assert.equal(JSON.parse(versionError.body).id,JSON.parse(req.body).id);
+  assert.equal(b.peer.dispatch((()=>{const fresh=makeRequest(a.binding,a.privateKey,b.binding,message(),{clock});return{...fresh,headers:{...fresh.headers,'a2a-extensions':''}};})()).status, 400);
   advance(61001);
   assert.equal(b.peer.dispatch(req).status, 401);
 });
