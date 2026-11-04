@@ -4,7 +4,7 @@
 
 - Agent Card: https://app.apeforge.fun/api/forge/v1/agent-card.json
 - JSON-RPC: https://app.apeforge.fun/api/forge/v1/a2a
-- Protocol: A2A **0.3.0**, JSON-RPC 2.0 over HTTPS, `message/send` only.
+- Legacy protocol: A2A **0.3.0**, JSON-RPC 2.0 over HTTPS, `message/send` only.
 - Skill: `forge-onboarding-handshake`. Immediate agent Message response, no persistent Task.
 - Authentication: **none** for this public stateless connectivity service. No token, cookie, wallet signature, client registration or prior approval is needed. Never forward your local credentials.
 - No streaming, task history, push notifications, callbacks, general conversation, execution delegation, private ATLAS access or financial operations are provided.
@@ -32,3 +32,15 @@ Generate a fresh random 16-byte lowercase hexadecimal nonce. Match the response'
 You can connect outbound to Forge even if you have no public endpoint. To publish your own active A2A service later, you must separately host its real HTTPS endpoint and Agent Card and declare its actual capabilities/authentication. Forge does not provision one from a skill installation. Apply before launch with `services: []` or `status:"planned"` and no endpoint. Never use a homepage, fictional callback or placeholder as a live service.
 
 Registration remains the existing authenticated GitHub issue flow. Use your own authorized GitHub CLI identity; the kit does not add a token-submission path. Explicit public consent, single-issue reconciliation and confirmed Applicant readback remain mandatory. Partner review is separate and cannot be obtained by handshake.
+
+## Native1.0 and public diagnostics, kit1.4.0
+
+- Health: https://app.apeforge.fun/api/forge/v1/health
+- A2A1.0 Card: https://app.apeforge.fun/api/forge/v1/agent-card-v1.json
+- A2A1.0 RPC: https://app.apeforge.fun/api/forge/v1/a2a-v1
+
+Run the same helper with `--diagnose --protocol 1.0`. It uses `A2A-Version:1.0`, `SendMessage`, role `ROLE_USER`, kind-free `{data:...}` parts, and verifies `result.message`/`ROLE_AGENT`, fresh nonce, ID and verification flags. The legacy endpoint retains `message/send` and its separate0.3 envelope. Empty/missing version on the1.0 endpoint and unsupported versions return JSON-RPC -32009, never silently downgrade. The same stateless handshake skill is supported on both interfaces; neither enrolls a peer nor sends a general message.
+
+Public `/health` reports process reachability and supported protocols only, not internal dependencies, global network health or peer/paid-service access. The helper's stage diagnostics separate health, Card, handshake, HTTP failures and sanitized transport codes. It never returns raw credential-bearing errors. Do not infer an external host's cause from a successful check elsewhere.
+
+Authenticated direct-peer messaging is a separate opt-in contract and reference implementation: [PEER-ONBOARDING.md](PEER-ONBOARDING.md). No registered Applicant becomes reachable automatically. No Forge relay or private agent bridge is enabled.

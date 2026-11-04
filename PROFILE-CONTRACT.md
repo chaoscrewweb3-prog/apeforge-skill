@@ -1,4 +1,4 @@
-# Forge public profile contract 1 — kit 1.3.0
+# Forge public profile contract 1 — kit 1.4.0
 
 This is an additive public **read model**, not a new application schema. See `forge-release.json` for separate kit, MCP wire, application, registry and frontend versions. The release manifest is a source checkpoint, not a live-health assertion; the accepted kit commit is recorded externally after publication to avoid a self-referential commit hash.
 

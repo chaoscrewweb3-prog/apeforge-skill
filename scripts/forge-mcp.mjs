@@ -147,7 +147,7 @@ export function createService({ runGh = defaultGh, registry = registrationClient
       if (directory) await rm(directory, { recursive: true, force: true }).catch(() => {});
     }
   }
-  return { connect: connector, readiness, reconcile, submit, getProfile:id=>profiles.get(id), async register(args){if(!ownKeys(args,['issueNumber','requestId','publicProfileConsent'])||args.publicProfileConsent!==true)return problem('public_consent_required','Authorize public Applicant registration.');return registry.register(args.issueNumber,args.requestId);} };
+  return { connect: args=>connector(undefined,args), readiness, reconcile, submit, getProfile:id=>profiles.get(id), async register(args){if(!ownKeys(args,['issueNumber','requestId','publicProfileConsent'])||args.publicProfileConsent!==true)return problem('public_consent_required','Authorize public Applicant registration.');return registry.register(args.issueNumber,args.requestId);} };
 }
 
 const applicationInput = { type: 'object', description: 'Raw public profile using application.example.json fields; no credentials or private wallet keys.' };
@@ -156,7 +156,7 @@ const tool = (name, description, properties = {}, required = [], readOnlyHint = 
   annotations: { readOnlyHint, destructiveHint: false, idempotentHint: readOnlyHint, openWorldHint: !['forge_capabilities', 'forge_prepare_application', 'forge_validate_application', 'forge_profile_reference'].includes(name) }
 });
 export const TOOLS = [
-  tool('forge_connect','Anonymous fixed-origin A2A discovery and nonce handshake. No GitHub, public listing, wallet proof or callback required.'),
+  tool('forge_connect','Anonymous fixed-origin A2A discovery/nonce handshake with safe stage diagnostics. Not peer enrollment.',{protocolVersion:{type:'string',enum:['0.3.0','1.0']},diagnose:{type:'boolean'}}),
   tool('forge_profile_reference','Offline public profile route for a registered ID or known core:KEY; Core data retrieval is not implemented.',{id:{type:'string',maxLength:25}},['id']),
   tool('forge_get_registered_profile','Read one fixed-origin public registered profile. No credentials, Core API, endpoint execution or invented telemetry.',{id:{type:'string',pattern:'^g[0-9]{1,16}$'}},['id']),
   tool('forge_capabilities', 'Local capabilities; no network call. Issue intake is distinct from registry membership.'),
@@ -214,12 +214,12 @@ export function createRpc(service = createService()) {
     let result;
     try {
       switch (params.name) {
-        case 'forge_capabilities': result = { ok: true, offlinePreparation: true, publicIssueIntake: true, a2aConnectivity:true, preServiceApplications:true, externalPricingDescriptions:true,
+        case 'forge_capabilities': result = { ok: true, offlinePreparation: true, publicIssueIntake: true, a2aConnectivity:true, a2aV1Connectivity:true, publicDiagnostics:true, directPeerReference:true, centralPeerEnrollment:false, peerRelay:false, preServiceApplications:true, externalPricingDescriptions:true,
           kitVersion:KIT_VERSION,publicProfileSchema:PUBLIC_PROFILE_SCHEMA,applicationSchema:release.contracts.application,registryApiSchema:release.contracts.registryApi,markerPrefix:release.contracts.requestIdPrefix,registeredProfileRead:true,coreProfileReference:true,coreProfileRead:false,publicJobFeed:false,publicRevenueFeed:false,acpReadAdapter:false,
           repository: REPO_URL, requiresOwnGhAuth: true, requiresPublicConsent: true,
           registrationSupported:true, registrationAvailable:null, membershipAvailable:false, paymentAvailable:false, lockAvailable: false,
           idempotency: 'stable-marker-best-effort-not-atomic', updateAvailable: false }; break;
-        case 'forge_connect': result=await service.connect();break;
+        case 'forge_connect': result=(!('diagnose' in args)||typeof args.diagnose==='boolean')&&(!('protocolVersion' in args)||['0.3.0','1.0'].includes(args.protocolVersion))?await service.connect(args):problem('invalid_connection_options','Choose protocolVersion 0.3.0 or 1.0 and a boolean diagnose flag.');break;
         case 'forge_profile_reference': result=profileReference(args.id);break;
         case 'forge_get_registered_profile': result=await service.getProfile(args.id);break;
         case 'forge_readiness': result = await service.readiness(); break;

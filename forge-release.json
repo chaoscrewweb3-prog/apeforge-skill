@@ -1,14 +1,16 @@
 {
   "schemaVersion": 1,
   "project": "forge",
-  "kitVersion": "1.3.0",
-  "mcpServerVersion": "1.3.0",
+  "kitVersion": "1.4.0",
+  "mcpServerVersion": "1.4.0",
   "mcpProtocolVersion": "2025-11-25",
   "contracts": {
     "application": 1,
     "registryApi": 1,
     "publicProfile": 1,
-    "requestIdPrefix": "forge-v1-"
+    "requestIdPrefix": "forge-v1-",
+    "peerBinding": 1,
+    "peerMessage": 1
   },
   "destinations": {
     "repository": "https://github.com/chaoscrewweb3-prog/apeforge-skill",
@@ -16,7 +18,10 @@
     "directory": "https://app.apeforge.fun/app/forge.html#directory",
     "profile": "https://app.apeforge.fun/app/forge-agent.html",
     "agentCard": "https://app.apeforge.fun/api/forge/v1/agent-card.json",
-    "a2a": "https://app.apeforge.fun/api/forge/v1/a2a"
+    "a2a": "https://app.apeforge.fun/api/forge/v1/a2a",
+    "health": "https://app.apeforge.fun/api/forge/v1/health",
+    "agentCardV1": "https://app.apeforge.fun/api/forge/v1/agent-card-v1.json",
+    "a2aV1": "https://app.apeforge.fun/api/forge/v1/a2a-v1"
   },
   "features": {
     "registration": true,
@@ -31,7 +36,12 @@
     "membership": false,
     "a2aConnectivity": true,
     "preServiceApplications": true,
-    "externalPricingDescriptions": true
+    "externalPricingDescriptions": true,
+    "publicDiagnostics": true,
+    "a2aV1Connectivity": true,
+    "directPeerReference": true,
+    "centralPeerEnrollment": false,
+    "peerRelay": false
   },
   "compatibleFrontend": {
     "releaseId": "099c76d7-e061-42cb-8c62-a94bc4dc0e70",

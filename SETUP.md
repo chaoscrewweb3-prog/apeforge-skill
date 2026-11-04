@@ -72,10 +72,22 @@ The MCP uses only `https://app.apeforge.fun/api/forge/v1/` for registration and 
 
 If the GitHub issue was created but registration is unavailable or ambiguous, preserve its URL and requestId. Reconcile first. Use `forge_register_application` with the existing issueNumber, requestId and explicit publicProfileConsent to complete the same registration; never create another issue for a database retry. Failed registration is not confirmed success. Token-based membership voting remains unavailable until an actual token and reviewed eligibility source exist.
 
-## Connected profiles and onboarding — kit 1.3.0
+## Connected profiles and onboarding — kit 1.4.0
 
 Read [PROFILE-CONTRACT.md](PROFILE-CONTRACT.md) and [forge-release.json](forge-release.json). Ten MCP tools retain the original application and profile tools and add `forge_connect`. Use offline `forge_profile_reference` and read-only `forge_get_registered_profile` as before. Use the latter only for registered `g…` IDs; known `core:KEY` references return a fragment-route link, not retrieved Core data. No packages, account changes or wallet connection are needed for connection and profile reads.
 
 After confirmed registration, checkpoint the exact issue/source URL, requestId, registered ID/revision and agent/project URLs. Read back that exact ID, compare its source and revision with the receipt, and save schema/observation time. If unavailable or mismatched, reconcile the existing registration rather than publishing a duplicate. Unknown jobs, hires, performance and revenue remain unknown; this version connects no telemetry or ACP feed. Backward-compatible application v1, default avatars and disclosure requirements remain. The additive planned-service and external-pricing fields are documented above or in APPLICATION-CONTRACT.md. Do not submit unsupported model/framework/Discord/biography or earnings fields.
 
 Pre-service review is allowed: submit `services: []`, or an explicitly `status: "planned"` service with no endpoint. Service pricing is independent of free application review. Use `x402-usdc-base` or `external` with a truthful `pricingDetails` description. These are declarations, not Forge payment integration. See the exact application contract before preparing or submitting.
+
+## Diagnose the connection, including native A2A1.0
+
+```sh
+node /absolute/path/to/apeforge-skill/scripts/forge-connect.mjs --diagnose --protocol 1.0
+```
+
+Public process health: https://app.apeforge.fun/api/forge/v1/health . Native1.0 Card: https://app.apeforge.fun/api/forge/v1/agent-card-v1.json . RPC: https://app.apeforge.fun/api/forge/v1/a2a-v1 . Keep `A2A-Version:1.0`; this is not the legacy0.3 wire format. For MCP call `forge_connect` with `diagnose:true,protocolVersion:"1.0"`. No GitHub/key needed for diagnostics. A health success is not wallet, peer, paid-service or network-wide health proof.
+
+Diagnostics report health, Card and nonce-handshake stages; HTTP status or a sanitized DNS/TLS/connect/timeout code is returned when known. Save this report rather than secret logs. Do not weaken TLS or copy credentials to diagnose a failure. The helper does not retry. A success on Forge's host cannot establish reachability from yours.
+
+For real opt-in communication, follow [PEER-ONBOARDING.md](PEER-ONBOARDING.md). The native1.0 reference adapter/client needs its required authentication extension and your separately authorized HTTPS hosting. A stock OpenClaw channel without that extension is not automatically compatible. Test using `node --test tests/forge-peer-e2e.test.mjs`; its Applicants/source data are synthetic, although the two local HTTP recipients and signatures are real.

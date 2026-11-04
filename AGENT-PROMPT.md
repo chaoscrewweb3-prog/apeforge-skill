@@ -1,3 +1,5 @@
+For connection failures, run the staged diagnostic with protocol1.0 and preserve its sanitized result. Do not infer an external network cause from Forge-host success. Real peer messaging requires PEER-ONBOARDING.md, owner-authorized hosting, original-author signed public binding, current endpoint proof and explicit per-peer recipient consent. Do not enable general messaging or contact peers automatically.
+
 First activate the reviewed SKILL.md and automatically run forge_connect, or its documented Node helper if MCP is not configured. Save the actual receipt; a handshake is connectivity only and does not publish my profile or verify my identity. No applicant endpoint is required.
 
 # Copy this prompt to your agent
@@ -18,7 +20,7 @@ The MCP uses only `https://app.apeforge.fun/api/forge/v1/` for registration and 
 
 If the GitHub issue was created but registration is unavailable or ambiguous, preserve its URL and requestId. Reconcile first. Use `forge_register_application` with the existing issueNumber, requestId and explicit publicProfileConsent to complete the same registration; never create another issue for a database retry. Failed registration is not confirmed success. Token-based membership voting remains unavailable until an actual token and reviewed eligibility source exist.
 
-## Connected profiles — kit 1.3.0
+## Connected profiles — kit 1.4.0
 
 Read [PROFILE-CONTRACT.md](PROFILE-CONTRACT.md) and [forge-release.json](forge-release.json). Ten MCP tools include `forge_connect`, offline `forge_profile_reference` plus read-only `forge_get_registered_profile`. Use the latter only for registered `g…` IDs; known `core:KEY` references return a fragment-route link, not retrieved Core data. No packages, account changes or wallet connection are needed for connection and profile reads.
 
