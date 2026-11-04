@@ -7,9 +7,9 @@
  * No DNS resolution is performed: server-side connection code must perform
  * its own resolution, redirect and network-boundary checks in a later slice.
  */
-export const FORGE_LIMITS = Object.freeze({ services: 8, techStack: 20, stackItem: 48, url: 2048, name: 80, summary: 1200, serviceText: 800 });
+export const FORGE_LIMITS = Object.freeze({ services: 8, techStack: 20, stackItem: 48, models: 20, modelItem: 80, framework: 120, url: 2048, name: 80, summary: 1200, serviceText: 800 });
 
-const ROOT_KEYS = ['name', 'summary', 'projectName', 'ownerWallet', 'website', 'x', 'telegram', 'techStack', 'requestedCategory', 'services'];
+const ROOT_KEYS = ['name', 'summary', 'projectName', 'ownerWallet', 'website', 'x', 'telegram', 'techStack', 'requestedCategory', 'services', 'avatar', 'models', 'framework'];
 const SERVICE_KEYS = ['name', 'description', 'protocol', 'endpoint', 'pricing', 'unit', 'input', 'output', 'support', 'status', 'pricingDetails', 'paymentOptions'];
 const RESERVED_SUFFIXES = ['localhost', 'local', 'internal', 'invalid', 'test', 'example', 'onion', 'home', 'lan', 'arpa'];
 const RESERVED_DOMAINS = ['example.com', 'example.net', 'example.org'];
@@ -18,6 +18,36 @@ const CONTROL_CHARS = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/;
 function isRecord(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
     && (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null);
+}
+
+// Browser-safe CID validation. Only common immutable sha2-256 raw/dag-pb CIDs.
+function validAvatarCid(cid) {
+  if (/^Qm[1-9A-HJ-NP-Za-km-z]{44}$/.test(cid)) {
+    const alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+    let n = 0n;
+    for (const char of cid) n = n * 58n + BigInt(alphabet.indexOf(char));
+    const raw = [];
+    while (n) { raw.unshift(Number(n & 255n)); n >>= 8n; }
+    return raw.length === 34 && raw[0] === 0x12 && raw[1] === 0x20;
+  }
+  if (!/^b[a-z2-7]{10,120}$/.test(cid)) return false;
+  const alphabet = 'abcdefghijklmnopqrstuvwxyz234567';
+  let bits = 0, accumulator = 0;
+  const raw = [];
+  for (const char of cid.slice(1)) {
+    accumulator = (accumulator << 5) | alphabet.indexOf(char); bits += 5;
+    if (bits >= 8) { bits -= 8; raw.push((accumulator >> bits) & 255); accumulator &= (1 << bits) - 1; }
+  }
+  if (raw.length !== 36 || raw[0] !== 1 || ![0x55,0x70].includes(raw[1]) || raw[2] !== 0x12 || raw[3] !== 0x20) return false;
+  // Re-encode to reject extra/nonzero padding bits and noncanonical encodings.
+  bits = 0; accumulator = 0; let canonical = 'b';
+  for (const byte of raw) {
+    accumulator = (accumulator << 8) | byte; bits += 8;
+    while (bits >= 5) { bits -= 5; canonical += alphabet[(accumulator >> bits) & 31]; }
+    accumulator &= (1 << bits) - 1;
+  }
+  if (bits) canonical += alphabet[(accumulator << (5 - bits)) & 31];
+  return canonical === cid;
 }
 
 export function validateApplication(input) {
@@ -76,6 +106,35 @@ export function validateApplication(input) {
   const x = publicUrl(input.x, 'x', { required: false, social: 'x' });
   const telegram = publicUrl(input.telegram, 'telegram', { required: false, social: 'telegram' });
   if (!website && !x && !telegram) fail('website', 'Provide at least one public website, X profile or Telegram profile.');
+  const extras = {};
+  // Add only explicitly present fields. Legacy canonical bytes/markers stay unchanged.
+  if (Object.hasOwn(input, 'avatar')) {
+    const clean = text(input.avatar, 'avatar', FORGE_LIMITS.url, false);
+    if (clean.startsWith('ipfs://')) {
+      const parts = clean.slice(7).split('/');
+      const cid = parts.shift();
+      const validCid = validAvatarCid(cid);
+      if (!validCid || parts.some(part => !/^[A-Za-z0-9._-]{1,255}$/.test(part) || part === '.' || part === '..')) fail('avatar', 'Use ipfs://CID with an optional safe filename path, without query, fragment or traversal.');
+      extras.avatar = clean;
+    } else {
+      extras.avatar = publicUrl(clean, 'avatar', { required: false });
+      if (clean) {
+        try { const url = new URL(clean); if (url.port && url.port !== '443' || clean.includes('#')) fail('avatar', 'Avatar HTTPS URLs require port 443 and no fragment.'); } catch { /* publicUrl already reports malformed URLs. */ }
+      }
+    }
+  }
+  if (Object.hasOwn(input, 'models')) {
+    extras.models = [];
+    if (!Array.isArray(input.models) || input.models.length > FORGE_LIMITS.models) fail('models', `List 0–${FORGE_LIMITS.models} public model names.`);
+    else {
+      const seen = new Set();
+      input.models.forEach((item, index) => {
+        const clean = text(item, `models.${index}`, FORGE_LIMITS.modelItem);
+        if (clean && !seen.has(clean.toLowerCase())) { extras.models.push(clean); seen.add(clean.toLowerCase()); }
+      });
+    }
+  }
+  if (Object.hasOwn(input, 'framework')) extras.framework = text(input.framework, 'framework', FORGE_LIMITS.framework, false);
   const requestedCategory = input.requestedCategory;
   if (!['community', 'partner'].includes(requestedCategory)) fail('requestedCategory', 'Choose Community or Partner. Core membership cannot be requested here.');
 
@@ -144,7 +203,7 @@ export function validateApplication(input) {
       kind: 'forge-application-draft',
       submissionState: 'local-draft',
       requestedCategory,
-      profile: { name, summary, projectName, ownerWallet: ownerWallet.toLowerCase(), website, x, telegram, techStack, services },
+      profile: { name, summary, projectName, ownerWallet: ownerWallet.toLowerCase(), website, x, telegram, techStack, services, ...extras },
       verification: { wallet: 'unverified', membership: 'not-submitted', lock: 'not-checked' }
     }
   };

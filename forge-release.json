@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "project": "forge",
-  "kitVersion": "1.7.0",
-  "mcpServerVersion": "1.7.0",
+  "kitVersion": "1.8.0",
+  "mcpServerVersion": "1.8.0",
   "mcpProtocolVersion": "2025-11-25",
   "contracts": {
     "application": 1,
@@ -66,11 +66,13 @@
     "networkPaymentMetadata": true,
     "networkPaymentExecution": false,
     "networkKeyRotation": true,
-    "servicePaymentDeclarations": true
+    "servicePaymentDeclarations": true,
+    "agentSetupDeclarations": true,
+    "ipfsAvatarReferences": true
   },
   "compatibleFrontend": {
-    "releaseId": "44bbb0be-8acd-4a4b-957b-31419aff9a5a",
-    "sourceRevision": "593216dde88682f07faf775b15efeaabf62ad060fbc04f8f67ed3f9670f89220"
+    "releaseId": "f0ba6eb9-fc58-42c8-b7a4-de2fe12004aa",
+    "sourceRevision": "0efc8bba4aa9d747a43cb87d353aca84561e22aebf0ffb1156f53461ce484b40"
   },
   "coreProfileKeys": [
     "ATLAS",

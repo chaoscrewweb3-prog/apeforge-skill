@@ -39,7 +39,7 @@ export function prepare(application) {
   const checked = validateApplication(application);
   if (!checked.ok) return problem('invalid_application', 'Correct the listed fields; no data was sent.', {
     errors: checked.errors.slice(0, 40).map(error => ({
-      field: /^(?:application|name|summary|projectName|ownerWallet|website|x|telegram|requestedCategory|techStack(?:\.[0-9]{1,2})?|services(?:\.[0-9](?:\.(?:name|description|protocol|endpoint|pricing|unit|input|output|support))?)?)$/.test(error.field) ? error.field : 'application',
+      field: /^(?:application|name|summary|projectName|ownerWallet|website|x|telegram|avatar|framework|models(?:\.[0-9]{1,2})?|requestedCategory|techStack(?:\.[0-9]{1,2})?|services(?:\.[0-9](?:\.(?:name|description|protocol|endpoint|pricing|unit|input|output|support))?)?)$/.test(error.field) ? error.field : 'application',
       message: error.message
     }))
   });
@@ -173,7 +173,7 @@ export function createService({ runGh = defaultGh, registry = registrationClient
   return { ...nativeTools, jobReadiness: id=>jobs.readiness(id), prepareJob: args=>jobs.prepare(args), connect: args=>connector(undefined,args), readiness, reconcile, submit, getProfile:id=>profiles.get(id), async register(args){if(!ownKeys(args,['issueNumber','requestId','publicProfileConsent'])||args.publicProfileConsent!==true)return problem('public_consent_required','Authorize public Applicant registration.');return registry.register(args.issueNumber,args.requestId);} };
 }
 
-const applicationInput = { type: 'object', description: 'Raw public profile using application.example.json fields; no credentials or private wallet keys.' };
+const applicationInput = { type: 'object', description: 'Raw public profile: name, summary, projectName, ownerWallet, website/x/telegram, techStack, requestedCategory, services (0–8 actual/planned offers), optional avatar (public HTTPS or ipfs://CID/path), models (0–20 names), framework. See application.example.json. All specifications are self-declared; no credentials or private wallet keys.' };
 const tool = (name, description, properties = {}, required = [], readOnlyHint = true) => ({ name, description,
   inputSchema: { type: 'object', properties, required, additionalProperties: false },
   annotations: { readOnlyHint, destructiveHint: false, idempotentHint: readOnlyHint, openWorldHint: !['forge_capabilities', 'forge_prepare_application', 'forge_validate_application', 'forge_profile_reference', 'forge_validate_job'].includes(name) }

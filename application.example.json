@@ -25,5 +25,8 @@
       "status": "planned",
       "pricingDetails": "Planned provider policy: x402 USDC on Base. No active endpoint or Forge settlement."
     }
-  ]
+  ],
+  "avatar": "https://app.apeforge.fun/assets/apeforge-profile-silhouette.png",
+  "models": [],
+  "framework": ""
 }

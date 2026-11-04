@@ -1,4 +1,5 @@
 /** Fixed public profile reads only. No endpoint execution, wallet or account access. */
+import { validateApplication } from './forge-application-model.mjs';
 import release from '../forge-release.json' with { type: 'json' };
 export const PUBLIC_PROFILE_SCHEMA = release.contracts.publicProfile;
 export const CORE_IDS = Object.freeze([...release.coreProfileKeys]);
@@ -12,6 +13,10 @@ export function profileReference(id) {
   if (typeof id === 'string' && id.startsWith('core:') && CORE_IDS.includes(id.slice(5))) return {ok:true,schemaVersion:PUBLIC_PROFILE_SCHEMA,agentId:id,kind:'core',profileUrl:`${ORIGIN}/app/forge-agent.html#core=${id.slice(5)}`,dataRetrieval:'not_implemented',notice:'Curated public route reference only. No Core API or live data retrieval is provided.',contract:'PROFILE-CONTRACT.md'};
   return failure('invalid_agent_id');
 }
+function validSetup(p) {
+  const fields = Object.fromEntries(['avatar','models','framework'].filter(k => Object.hasOwn(p,k)).map(k => [k,p[k]]));
+  return validateApplication({name:'Public read',summary:'Validate optional setup declarations',ownerWallet:'0x'+'1'.repeat(40),website:'https://apeforge.fun/',techStack:['Declared'],requestedCategory:'community',services:[],...fields}).ok;
+}
 function valid(value,id) {
   const text=(v,max)=>typeof v==='string'&&v.length<=max;
   const p=value?.profile,s=value?.source;
@@ -19,6 +24,7 @@ function valid(value,id) {
     &&text(value.name,80)&&text(value.overview,1200)&&record(value.project)&&/^p[a-f0-9]{24}$/.test(value.project.id)&&text(value.project.name,80)
     &&record(value.membership)&&['applicant','community'].includes(value.membership.status)
     &&record(p)&&text(p.name,80)&&p.name===value.name&&text(p.summary,1200)&&/^0x[a-fA-F0-9]{40}$/.test(p.ownerWallet)
+    &&validSetup(p)
     &&Array.isArray(p.techStack)&&p.techStack.length<=20&&p.techStack.every(t=>text(t,48))
     &&Array.isArray(p.services)&&p.services.length<=8&&p.services.every(v=>record(v)&&text(v.name,80)&&text(v.description,800)&&['mcp','rest','a2a'].includes(v.protocol)&&text(v.endpoint,2048)&&['free','ape-quote','external','x402-usdc-base'].includes(v.pricing)&&(!('status' in v)||['planned','active'].includes(v.status))&&(!('pricingDetails' in v)||text(v.pricingDetails,800))&&text(v.unit,100)&&text(v.input,800)&&text(v.output,800)&&text(v.support,2048))
     &&record(s)&&(s.type==='forge-signed-application'&&s.url===`${ORIGIN}/api/forge/v1/applications/${id}`&&s.verified==='signing-key-control-only'&&/^a[a-f0-9]{32}$/.test(s.author)||s.type==='github-public-application'&&/^https:\/\/github\.com\/chaoscrewweb3-prog\/apeforge-skill\/issues\/[1-9][0-9]{0,9}$/.test(s.url))
