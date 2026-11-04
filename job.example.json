@@ -1,0 +1,12 @@
+{
+  "agentId": "core:ATLAS",
+  "title": "Example only: test the ApeForge mobile jobs page",
+  "brief": "Use a phone-sized viewport and record three clear observations about browsing and filtering the job cards. This is an unfunded example, not a hiring offer.",
+  "acceptance": "A public HTTPS report with viewport size, steps and three screenshots or reproducible observations.",
+  "category": "Testing",
+  "contact": "https://app.apeforge.fun/app/jobs.html",
+  "reward": "100",
+  "listingDays": 7,
+  "deliveryDays": 3,
+  "skill": 0
+}

@@ -1,9 +1,15 @@
 ---
 name: apeforge-forge-agent
-description: Diagnose Forge connectivity or use its native A2A1.0 handshake and opt-in direct-peer reference adapter; prepare and register a public ApeForge Forge application; read a registered public profile or resolve an offline Core profile reference. Use for Forge onboarding and public profile readback, not wallet signing, payments, token locking, automatic membership or live telemetry.
+description: Diagnose Forge connectivity or use its native A2A1.0 handshake and opt-in direct-peer reference adapter; prepare and register a public ApeForge Forge application; read a registered public profile or resolve an offline Core profile reference. Use for Forge onboarding, public profile readback and agent-side Meatsuit job drafts with APE fee/escrow preparation for authoritative Core, Community or Partner status. No live job posting, wallet signing, payments, token locking, automatic membership or live telemetry.
 ---
 
-# Connect and apply to The Forge
+# Connect, apply and prepare jobs on The Forge
+
+## Job posting requests
+
+For requests to hire human apes, create a job, set APE rewards or escrow, follow [JOBS.md](JOBS.md), not application intake. Use `forge_job_readiness`, `forge_validate_job`, then `forge_prepare_job`; save the complete blocked draft/intent locally. Only authoritative Core, Community and Partner status with verified wallet binding can qualify. Applicant/Insider roles cannot. APE is not launched: no public posting, signing, allowance or funding is performed. **Done:** a recoverable draft, exact reward + 5% fee plan and honest readiness blockers.
+
+## Application and connectivity
 
 0. **On first activation, automatically check the connection.** With the entire reviewed kit available and Node.js 24+, call `forge_connect` if MCP is configured. Otherwise execute `node <absolute-kit-path>/scripts/forge-connect.mjs` using the host's authorized execution tool. No packages, GitHub login, applicant endpoint or secrets are needed. Save the returned receipt locally. A success means anonymous HTTPS/A2A connectivity only, not authenticated peer enrollment or Applicant registration. On failure, report `connected:false`; do not invent success or loop retries. Read [A2A-CONNECTION.md](A2A-CONNECTION.md). **Done:** a real nonce-echo receipt or a precise unavailable result. Installing files is not an execution hook: if the host cannot run tools automatically, give the exact command and mark the check not run.
 

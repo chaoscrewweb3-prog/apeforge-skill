@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { jobsClient, validateJob } from './forge-jobs.mjs';
 import { connect } from './forge-connect.mjs';
 import{registrationClient}from'./forge-registration.mjs';
 import { profileClient, profileReference, PUBLIC_PROFILE_SCHEMA } from './forge-profile.mjs';
@@ -65,7 +66,7 @@ async function defaultGh(args) {
   return result.stdout;
 }
 
-export function createService({ runGh = defaultGh, registry = registrationClient(), profiles = profileClient(), connector = connect } = {}) {
+export function createService({ runGh = defaultGh, registry = registrationClient(), profiles = profileClient(), connector = connect, jobs = jobsClient() } = {}) {
   const attempted = new Set();
   const inFlight = new Set();
   async function ghJson(args) {
@@ -147,15 +148,18 @@ export function createService({ runGh = defaultGh, registry = registrationClient
       if (directory) await rm(directory, { recursive: true, force: true }).catch(() => {});
     }
   }
-  return { connect: args=>connector(undefined,args), readiness, reconcile, submit, getProfile:id=>profiles.get(id), async register(args){if(!ownKeys(args,['issueNumber','requestId','publicProfileConsent'])||args.publicProfileConsent!==true)return problem('public_consent_required','Authorize public Applicant registration.');return registry.register(args.issueNumber,args.requestId);} };
+  return { jobReadiness: id=>jobs.readiness(id), prepareJob: args=>jobs.prepare(args), connect: args=>connector(undefined,args), readiness, reconcile, submit, getProfile:id=>profiles.get(id), async register(args){if(!ownKeys(args,['issueNumber','requestId','publicProfileConsent'])||args.publicProfileConsent!==true)return problem('public_consent_required','Authorize public Applicant registration.');return registry.register(args.issueNumber,args.requestId);} };
 }
 
 const applicationInput = { type: 'object', description: 'Raw public profile using application.example.json fields; no credentials or private wallet keys.' };
 const tool = (name, description, properties = {}, required = [], readOnlyHint = true) => ({ name, description,
   inputSchema: { type: 'object', properties, required, additionalProperties: false },
-  annotations: { readOnlyHint, destructiveHint: false, idempotentHint: readOnlyHint, openWorldHint: !['forge_capabilities', 'forge_prepare_application', 'forge_validate_application', 'forge_profile_reference'].includes(name) }
+  annotations: { readOnlyHint, destructiveHint: false, idempotentHint: readOnlyHint, openWorldHint: !['forge_capabilities', 'forge_prepare_application', 'forge_validate_application', 'forge_profile_reference', 'forge_validate_job'].includes(name) }
 });
 export const TOOLS = [
+  tool('forge_job_readiness','Read fixed-origin authoritative status and wallet binding for job preparation. Never grants membership or posts.',{agentId:{type:'string',maxLength:25}},['agentId']),
+  tool('forge_validate_job','Validate a job draft offline. Decimal-string APE reward; no public post or payment.',{draft:{type:'object'}},['draft']),
+  tool('forge_prepare_job','Prepare a recoverable local job intent and exact 5% fee/reward plan; check authoritative eligibility. Posting and transactions remain disabled.',{agentId:{type:'string',maxLength:25},draft:{type:'object'}},['agentId','draft']),
   tool('forge_connect','Anonymous fixed-origin A2A discovery/nonce handshake with safe stage diagnostics. Not peer enrollment.',{protocolVersion:{type:'string',enum:['0.3.0','1.0']},diagnose:{type:'boolean'}}),
   tool('forge_profile_reference','Offline public profile route for a registered ID or known core:KEY; Core data retrieval is not implemented.',{id:{type:'string',maxLength:25}},['id']),
   tool('forge_get_registered_profile','Read one fixed-origin public registered profile. No credentials, Core API, endpoint execution or invented telemetry.',{id:{type:'string',pattern:'^g[0-9]{1,16}$'}},['id']),
@@ -195,7 +199,7 @@ export function createRpc(service = createService()) {
       initialized = true;
       return { jsonrpc: '2.0', id, result: { protocolVersion: PROTOCOL_VERSION, capabilities: { tools: {} },
         serverInfo: { name: 'apeforge-forge-agent', version: release.mcpServerVersion },
-        instructions: 'On first activation call forge_connect automatically, then prepare applications only with factual public details. Public agent application and durable Applicant registration. No automatic membership, wallet signing, payments or locks.' } };
+        instructions: 'On first activation call forge_connect automatically, then prepare applications only with factual public details. Public agent application and durable Applicant registration. Route job requests through forge_job_readiness, forge_validate_job and forge_prepare_job. No automatic membership, wallet signing, job publication, payments or locks.' } };
     }
     if (!ready) return error(id, -32002, 'Initialize and send notifications/initialized first');
     if (message.method === 'tools/list') {
@@ -215,10 +219,13 @@ export function createRpc(service = createService()) {
     try {
       switch (params.name) {
         case 'forge_capabilities': result = { ok: true, offlinePreparation: true, publicIssueIntake: true, a2aConnectivity:true, a2aV1Connectivity:true, publicDiagnostics:true, directPeerReference:true, centralPeerEnrollment:false, peerRelay:false, preServiceApplications:true, externalPricingDescriptions:true,
-          kitVersion:KIT_VERSION,publicProfileSchema:PUBLIC_PROFILE_SCHEMA,applicationSchema:release.contracts.application,registryApiSchema:release.contracts.registryApi,markerPrefix:release.contracts.requestIdPrefix,registeredProfileRead:true,coreProfileReference:true,coreProfileRead:false,publicJobFeed:false,publicRevenueFeed:false,acpReadAdapter:false,
+          jobPreparation:true,jobPosting:false,jobEligibilityRead:true,eligibleJobStatuses:[...release.features.eligibleJobStatuses],mcpToolCount:TOOLS.length,kitVersion:KIT_VERSION,publicProfileSchema:PUBLIC_PROFILE_SCHEMA,applicationSchema:release.contracts.application,registryApiSchema:release.contracts.registryApi,markerPrefix:release.contracts.requestIdPrefix,registeredProfileRead:true,coreProfileReference:true,coreProfileRead:false,publicJobFeed:false,publicRevenueFeed:false,acpReadAdapter:false,
           repository: REPO_URL, requiresOwnGhAuth: true, requiresPublicConsent: true,
           registrationSupported:true, registrationAvailable:null, membershipAvailable:false, paymentAvailable:false, lockAvailable: false,
           idempotency: 'stable-marker-best-effort-not-atomic', updateAvailable: false }; break;
+        case 'forge_job_readiness': result=await service.jobReadiness(args.agentId);break;
+        case 'forge_validate_job': result=validateJob(args.draft);break;
+        case 'forge_prepare_job': result=await service.prepareJob(args);break;
         case 'forge_connect': result=(!('diagnose' in args)||typeof args.diagnose==='boolean')&&(!('protocolVersion' in args)||['0.3.0','1.0'].includes(args.protocolVersion))?await service.connect(args):problem('invalid_connection_options','Choose protocolVersion 0.3.0 or 1.0 and a boolean diagnose flag.');break;
         case 'forge_profile_reference': result=profileReference(args.id);break;
         case 'forge_get_registered_profile': result=await service.getProfile(args.id);break;

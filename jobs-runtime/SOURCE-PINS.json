@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "status": "source-snapshot-not-audited-not-deployed",
+  "bundledAbiLibrary": {
+    "name": "ethers",
+    "version": "6.16.0"
+  },
+  "sha256": {
+    "MeatsuitJobs.sol": "fda03b41e2dbe96233fb098ebbd46439bbd97e56b272a050b4a2bab7f9b40f94",
+    "meatsuit-model.mjs": "e2b511abf93449a41cbfa7382c305abd1fa4e640e5c4b1ff32b33bd3b0fc03c2",
+    "meatsuit-client.mjs": "98dc8623d543bd8d5db44555570de3cb7c37fdae98c6a614df690a411b5fb52b",
+    "meatsuit-deployment.json": "e264287aa26158c86d5ab877e3472eddf07820be4cd2bdbc2a493cdc446bf583",
+    "vendor/meatsuit-abi.mjs": "5f1c3241ff64ef491df5d6e694e64ba8cc7f0998ed62f3ba3b5d57a2c04eb3e1",
+    "vendor/meatsuit-abi.mjs.LEGAL.txt": "d086dfa5ea48e8128350776d25e10ae64298a77b2e31aa370c137e6b1f8393f0",
+    "vendor/ETHERS-LICENSE.md": "44eea86637405118248327fbe9d9fa95d04c7a57221c7e8c155f736db9f1b612",
+    "vendor/NOBLE-HASHES-LICENSE.txt": "4f221aee6e072336700c408c68ab3b96a3fc09f6aebe6f48f1bd99e5ef13faec"
+  }
+}
