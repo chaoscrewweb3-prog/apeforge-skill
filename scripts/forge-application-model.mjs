@@ -10,7 +10,7 @@
 export const FORGE_LIMITS = Object.freeze({ services: 8, techStack: 20, stackItem: 48, url: 2048, name: 80, summary: 1200, serviceText: 800 });
 
 const ROOT_KEYS = ['name', 'summary', 'projectName', 'ownerWallet', 'website', 'x', 'telegram', 'techStack', 'requestedCategory', 'services'];
-const SERVICE_KEYS = ['name', 'description', 'protocol', 'endpoint', 'pricing', 'unit', 'input', 'output', 'support', 'status', 'pricingDetails'];
+const SERVICE_KEYS = ['name', 'description', 'protocol', 'endpoint', 'pricing', 'unit', 'input', 'output', 'support', 'status', 'pricingDetails', 'paymentOptions'];
 const RESERVED_SUFFIXES = ['localhost', 'local', 'internal', 'invalid', 'test', 'example', 'onion', 'home', 'lan', 'arpa'];
 const RESERVED_DOMAINS = ['example.com', 'example.net', 'example.org'];
 const CONTROL_CHARS = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/;
@@ -109,11 +109,30 @@ export function validateApplication(input) {
       const pricing = service.pricing;
       if (!['free', 'ape-quote', 'external', 'x402-usdc-base'].includes(pricing)) fail(field('pricing'), 'Choose free, ape-quote, external or x402-usdc-base.');
       const pricingDetails = text(service.pricingDetails, field('pricingDetails'), 800, ['external', 'x402-usdc-base'].includes(pricing));
+      const paymentOptions = [];
+      if (service.paymentOptions !== undefined) {
+        if (!Array.isArray(service.paymentOptions) || service.paymentOptions.length > 8) fail(field('paymentOptions'), 'Use at most 8 explicit payment options.');
+        else for (const option of service.paymentOptions) {
+          if (!keys(option, ['network','asset','method','status','details'], field('paymentOptions'))) continue;
+          const network = text(option.network, field('paymentOptions'), 40);
+          const asset = text(option.asset, field('paymentOptions'), 32);
+          const method = option.method, paymentStatus = option.status;
+          const details = text(option.details, field('paymentOptions'), 240, false);
+          if (!/^(?:eip155:[1-9][0-9]{0,31}|offchain)$/.test(network)) fail(field('paymentOptions'), 'Use an EVM CAIP-2 network or offchain.');
+          if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$/.test(asset)) fail(field('paymentOptions'), 'Use a public asset or currency symbol.');
+          if (!['x402','mpp','ap2','google-pay','direct-transfer','card','external'].includes(method)) fail(field('paymentOptions'), 'Choose a documented payment method.');
+          if (!['planned','active'].includes(paymentStatus) || status === 'planned' && paymentStatus !== 'planned') fail(field('paymentOptions'), 'Planned services cannot claim active payment support.');
+          if (method === 'external' && !details) fail(field('paymentOptions'), 'Describe the external payment method.');
+          const clean = {network,asset,method,status:paymentStatus,...(details?{details}:{})};
+          if (paymentOptions.some(o=>JSON.stringify(o)===JSON.stringify(clean))) fail(field('paymentOptions'), 'Remove duplicate payment options.');
+          paymentOptions.push(clean);
+        }
+      }
       const unit = text(service.unit, field('unit'), 100);
       const serviceInput = text(service.input, field('input'), FORGE_LIMITS.serviceText);
       const output = text(service.output, field('output'), FORGE_LIMITS.serviceText);
       const support = publicUrl(service.support, field('support'));
-      services.push({ name: serviceName, description, protocol, endpoint, pricing, unit, input: serviceInput, output, support, ...(status !== undefined ? { status } : {}), ...(service.pricingDetails !== undefined ? { pricingDetails } : {}) });
+      services.push({ name: serviceName, description, protocol, endpoint, pricing, unit, input: serviceInput, output, support, ...(status !== undefined ? { status } : {}), ...(service.pricingDetails !== undefined ? { pricingDetails } : {}), ...(service.paymentOptions !== undefined ? { paymentOptions } : {}) });
     });
   }
 

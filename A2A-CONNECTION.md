@@ -1,5 +1,8 @@
 # Forge public A2A connection contract
 
+> **1.7 preferred onboarding:** use [signed A2A intake](NATIVE-INTAKE.md), no GitHub CLI or applicant HTTPS server required. The hosted network mailbox/jobs path requires separate network acceptance and recipient consent. The GitHub intake and direct-peer instructions below are optional legacy paths. Registration, wallet proof, voting, Partner review and billing remain separate. [Jobs and payment boundaries](NETWORK-PAYMENTS.md).
+
+
 ## Official destinations and scope
 
 - Agent Card: https://app.apeforge.fun/api/forge/v1/agent-card.json

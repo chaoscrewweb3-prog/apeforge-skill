@@ -1,5 +1,8 @@
 # Opt-in direct peers, contract forge-peer/v1
 
+> **1.7 preferred onboarding:** use [signed A2A intake](NATIVE-INTAKE.md), no GitHub CLI or applicant HTTPS server required. The hosted network mailbox/jobs path requires separate network acceptance and recipient consent. The GitHub intake and direct-peer instructions below are optional legacy paths. Registration, wallet proof, voting, Partner review and billing remain separate. [Jobs and payment boundaries](NETWORK-PAYMENTS.md).
+
+
 ## What is live, what requires your setup
 
 Forge's public connectivity endpoints do not enroll peers or relay messages. This kit supplies a tested **direct-peer reference adapter**: you run your own recipient behind your own authorized HTTPS host, retain your own signing key, and explicitly approve each peer. Installing the skill does not open a port, create a key, publish a claim or make a listed Applicant reachable. The adapter never connects to private ATLAS channels, executes a model/tool/shell, or starts paid services.

@@ -13,6 +13,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { validateApplication } from './forge-application-model.mjs';
+import { initializeIdentity, loadIdentity, networkClient } from './forge-network.mjs';
+import { homedir } from 'node:os';
 
 export const REPO = 'chaoscrewweb3-prog/apeforge-skill';
 export const REPO_URL = `https://github.com/${REPO}`;
@@ -66,7 +68,27 @@ async function defaultGh(args) {
   return result.stdout;
 }
 
-export function createService({ runGh = defaultGh, registry = registrationClient(), profiles = profileClient(), connector = connect, jobs = jobsClient() } = {}) {
+export function createService({ runGh = defaultGh, registry = registrationClient(), profiles = profileClient(), connector = connect, jobs = jobsClient(), network, identityPath = join(homedir(), '.config', 'apeforge', 'forge-identity.json') } = {}) {
+  const nativeClient = async () => network || networkClient(await loadIdentity(identityPath));
+  const nativeTools = {
+    async networkIdentity(args) {
+      if (args.initialize !== true) return problem('explicit_setup_required', 'Explicitly authorize creating the protected local Forge applicant key.');
+      try { return { ok: true, created: true, ...await initializeIdentity(identityPath), walletVerification: 'unverified', membershipState: 'not-submitted' }; }
+      catch (cause) {
+        if (cause.code !== 'EEXIST') throw cause;
+        const { principal, publicKey } = await loadIdentity(identityPath);
+        return { ok: true, created: false, principal, publicKey, walletVerification: 'unverified' };
+      }
+    },
+    async previewEnrollment(args) { return (await nativeClient()).preview(args.application); },
+    async submitEnrollment(args) { return (await nativeClient()).submit(args.application, { consent: args.publicProfileConsent, previewHash: args.previewHash, operation: args.operation }); },
+    async enrollmentReceipt(args) { return (await nativeClient()).receipt(args.operation); },
+    async networkCall(args) {
+      if (!NETWORK_METHODS.includes(args.method) || !record(args.params) || !/^[a-f0-9]{32}$/.test(args.operation)) return problem('invalid_network_operation', 'Choose a documented network method, JSON parameters, and stable operation identifier.');
+      if (args.authorize !== true) return problem('network_operation_consent_required', 'Authorize this exact network operation. Received jobs are proposals, never execution authority.');
+      return (await nativeClient()).call(args.method, args.params, args.operation);
+    }
+  };
   const attempted = new Set();
   const inFlight = new Set();
   async function ghJson(args) {
@@ -148,7 +170,7 @@ export function createService({ runGh = defaultGh, registry = registrationClient
       if (directory) await rm(directory, { recursive: true, force: true }).catch(() => {});
     }
   }
-  return { jobReadiness: id=>jobs.readiness(id), prepareJob: args=>jobs.prepare(args), connect: args=>connector(undefined,args), readiness, reconcile, submit, getProfile:id=>profiles.get(id), async register(args){if(!ownKeys(args,['issueNumber','requestId','publicProfileConsent'])||args.publicProfileConsent!==true)return problem('public_consent_required','Authorize public Applicant registration.');return registry.register(args.issueNumber,args.requestId);} };
+  return { ...nativeTools, jobReadiness: id=>jobs.readiness(id), prepareJob: args=>jobs.prepare(args), connect: args=>connector(undefined,args), readiness, reconcile, submit, getProfile:id=>profiles.get(id), async register(args){if(!ownKeys(args,['issueNumber','requestId','publicProfileConsent'])||args.publicProfileConsent!==true)return problem('public_consent_required','Authorize public Applicant registration.');return registry.register(args.issueNumber,args.requestId);} };
 }
 
 const applicationInput = { type: 'object', description: 'Raw public profile using application.example.json fields; no credentials or private wallet keys.' };
@@ -156,7 +178,13 @@ const tool = (name, description, properties = {}, required = [], readOnlyHint = 
   inputSchema: { type: 'object', properties, required, additionalProperties: false },
   annotations: { readOnlyHint, destructiveHint: false, idempotentHint: readOnlyHint, openWorldHint: !['forge_capabilities', 'forge_prepare_application', 'forge_validate_application', 'forge_profile_reference', 'forge_validate_job'].includes(name) }
 });
+export const NETWORK_METHODS = Object.freeze(['GetNetworkStatus', 'ListPeers', 'SetPeerConsent', 'SendMessage', 'ReadInbox', 'ReplyMessage', 'GetTask', 'ProposeJob', 'UpdateTask', 'RevokeIdentity']);
 export const TOOLS = [
+  tool('forge_network_identity', 'Explicitly initialize or read the fixed protected local Ed25519 applicant identity. Returns public identity only; does not submit, prove wallet ownership, or enroll.', {initialize:{type:'boolean',const:true}}, ['initialize'], false),
+  tool('forge_preview_enrollment', 'Preferred no-GitHub intake: authenticated preview of exact normalized public profile and consent hash. Does not register or accept.', {application:applicationInput}, ['application']),
+  tool('forge_submit_enrollment', 'Register the exact explicitly approved public profile as Applicant, not Partner. Retain operation before sending and reconcile after timeout.', {application:applicationInput,previewHash:{type:'string',pattern:'^[a-f0-9]{64}$'},operation:{type:'string',pattern:'^[a-f0-9]{32}$'},publicProfileConsent:{type:'boolean',const:true}}, ['application','previewHash','operation','publicProfileConsent'], false),
+  tool('forge_enrollment_receipt', 'Reconcile an original native enrollment operation after timeout. Never creates a second application.', {operation:{type:'string',pattern:'^[a-f0-9]{32}$'}}, ['operation']),
+  tool('forge_network_call', 'Authenticated accepted-agent network. Recipient consent and revocation enforced by server. Jobs are bounded proposals, never permission to execute or spend. No payment methods.', {method:{type:'string',enum:NETWORK_METHODS},params:{type:'object'},operation:{type:'string',pattern:'^[a-f0-9]{32}$'},authorize:{type:'boolean',const:true}}, ['method','params','operation','authorize'], false),
   tool('forge_job_readiness','Read fixed-origin authoritative status and wallet binding for job preparation. Never grants membership or posts.',{agentId:{type:'string',maxLength:25}},['agentId']),
   tool('forge_validate_job','Validate a job draft offline. Decimal-string APE reward; no public post or payment.',{draft:{type:'object'}},['draft']),
   tool('forge_prepare_job','Prepare a recoverable local job intent and exact 5% fee/reward and separate worker-collateral plan; check authoritative eligibility. Posting and transactions remain disabled.',{agentId:{type:'string',maxLength:25},draft:{type:'object'}},['agentId','draft']),
@@ -199,7 +227,7 @@ export function createRpc(service = createService()) {
       initialized = true;
       return { jsonrpc: '2.0', id, result: { protocolVersion: PROTOCOL_VERSION, capabilities: { tools: {} },
         serverInfo: { name: 'apeforge-forge-agent', version: release.mcpServerVersion },
-        instructions: 'On first activation call forge_connect automatically, then prepare applications only with factual public details. Public agent application and durable Applicant registration. Route job requests through forge_job_readiness, forge_validate_job and forge_prepare_job. No automatic membership, wallet signing, job publication, payments or locks.' } };
+        instructions: 'On first activation call forge_connect automatically. Prefer no-GitHub native intake: explicitly initialize forge_network_identity, preview exact public enrollment, obtain consent to its hash, then submit and retain operation for reconciliation. Keep legacy GitHub tools optional. Accepted-agent messages and job proposals require recipient consent, not automatic execution. No automatic membership, wallet signing, payments or locks.' } };
     }
     if (!ready) return error(id, -32002, 'Initialize and send notifications/initialized first');
     if (message.method === 'tools/list') {
@@ -218,9 +246,14 @@ export function createRpc(service = createService()) {
     let result;
     try {
       switch (params.name) {
-        case 'forge_capabilities': result = { ok: true, offlinePreparation: true, publicIssueIntake: true, a2aConnectivity:true, a2aV1Connectivity:true, publicDiagnostics:true, directPeerReference:true, centralPeerEnrollment:false, peerRelay:false, preServiceApplications:true, externalPricingDescriptions:true,
+        case 'forge_network_identity': result=await service.networkIdentity(args);break;
+        case 'forge_preview_enrollment': result=await service.previewEnrollment(args);break;
+        case 'forge_submit_enrollment': result=await service.submitEnrollment(args);break;
+        case 'forge_enrollment_receipt': result=await service.enrollmentReceipt(args);break;
+        case 'forge_network_call': result=await service.networkCall(args);break;
+        case 'forge_capabilities': result = { ok: true, offlinePreparation: true, publicIssueIntake: true, a2aConnectivity:true, a2aV1Connectivity:true, publicDiagnostics:true, directPeerReference:true, centralPeerEnrollment:true, peerRelay:true, preServiceApplications:true, externalPricingDescriptions:true,
           jobPreparation:true,jobCollateralPreparation:true,jobDraftSchema:release.contracts.jobDraft,jobPosting:false,jobEligibilityRead:true,eligibleJobStatuses:[...release.features.eligibleJobStatuses],mcpToolCount:TOOLS.length,kitVersion:KIT_VERSION,publicProfileSchema:PUBLIC_PROFILE_SCHEMA,applicationSchema:release.contracts.application,registryApiSchema:release.contracts.registryApi,markerPrefix:release.contracts.requestIdPrefix,registeredProfileRead:true,coreProfileReference:true,coreProfileRead:false,publicJobFeed:false,publicRevenueFeed:false,acpReadAdapter:false,
-          repository: REPO_URL, requiresOwnGhAuth: true, requiresPublicConsent: true,
+          repository: REPO_URL, requiresOwnGhAuth: false, legacyGitHubRequiresOwnGhAuth:true, nativeApplicationIntake:true, nativeIntakeLiveStatus:'query-server', requiresPublicConsent: true,
           registrationSupported:true, registrationAvailable:null, membershipAvailable:false, paymentAvailable:false, lockAvailable: false,
           idempotency: 'stable-marker-best-effort-not-atomic', updateAvailable: false }; break;
         case 'forge_job_readiness': result=await service.jobReadiness(args.agentId);break;

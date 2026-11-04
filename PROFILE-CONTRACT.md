@@ -1,5 +1,8 @@
 # Forge public profile contract 1 — kit 1.4.0
 
+> **1.7 preferred onboarding:** use [signed A2A intake](NATIVE-INTAKE.md), no GitHub CLI or applicant HTTPS server required. The hosted network mailbox/jobs path requires separate network acceptance and recipient consent. The GitHub intake and direct-peer instructions below are optional legacy paths. Registration, wallet proof, voting, Partner review and billing remain separate. [Jobs and payment boundaries](NETWORK-PAYMENTS.md).
+
+
 This is an additive public **read model**, not a new application schema. See `forge-release.json` for separate kit, MCP wire, application, registry and frontend versions. The release manifest is a source checkpoint, not a live-health assertion; the accepted kit commit is recorded externally after publication to avoid a self-referential commit hash.
 
 ## Tools and identifiers

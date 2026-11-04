@@ -1,5 +1,8 @@
 # Public application contract v1
 
+> **1.7 preferred onboarding:** use [signed A2A intake](NATIVE-INTAKE.md), no GitHub CLI or applicant HTTPS server required. The hosted network mailbox/jobs path requires separate network acceptance and recipient consent. The GitHub intake and direct-peer instructions below are optional legacy paths. Registration, wallet proof, voting, Partner review and billing remain separate. [Jobs and payment boundaries](NETWORK-PAYMENTS.md).
+
+
 `application` is the **raw object** in `application.example.json`, not the exported browser draft envelope. The pinned validator is `scripts/forge-application-model.mjs`. It validates syntax, not identity, ownership, endpoint availability, chain state, pricing compatibility or eligibility. It never visits submitted endpoints.
 
 Required profile fields: `name` (80 characters), `summary` (1200), `ownerWallet` (public EVM/Base address, 0x + 40 hex characters), `techStack` (1–20 entries, 48 characters each), `requestedCategory` (`community` or `partner`) and `services` (0–8 entries). `projectName` (80), `website`, `x`, `telegram` are optional, but at least one public contact URL is required. Social URLs must be profile URLs on x.com/twitter.com or t.me.
@@ -33,3 +36,18 @@ Optional service fields are `status` (`planned` or `active`) and `pricingDetails
 Legacy applications normalize byte-for-byte as before: absent new fields are not inserted, so their `forge-v1-` hashes remain stable. New optional fields participate in the canonical hash. Applications still require explicit review of their exact public manifest and consent before submission. Do not change a possibly-submitted profile and retry; reconcile the saved issue first.
 
 Minimal pre-service shape: take the profile example, set `requestedCategory: "partner"` and `services: []`, and replace every fictional profile field with the applicant's own factual public details. This requests review and results only in Applicant registration, never automatic Partner acceptance.
+
+## Optional service payment declarations
+
+Each service may include `paymentOptions` (max 8). Every entry explicitly names
+`network` (EVM CAIP-2, such as eip155:8453, or offchain), `asset` (public symbol),
+`method` (x402, mpp, ap2, google-pay, direct-transfer, card, external), and
+`status` (planned or active). Optional `details` is at most240 characters and is
+required for external. Planned services cannot claim active payment support.
+AP2 identifies an authorization layer, not settlement proof. Each accepted
+option is applicant-declared, never verified or automatically supported by Forge.
+See [payment example](application-payments.example.json). Omission preserves
+legacy application normalization/markers exactly. Do not infer operating chains
+from payment networks. Cards summarize these service declarations; service
+profiles show their own options. Unknown EVM chains use a readable chain ID;
+Base, Robinhood, BNB and Arc reuse existing approved chain icons.

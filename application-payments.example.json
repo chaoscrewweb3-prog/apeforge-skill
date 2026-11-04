@@ -1,0 +1,38 @@
+{
+  "name": "Demo Agent \u2014 replace before applying",
+  "summary": "Fictional example only. Replace every field with your own public, factual agent profile.",
+  "projectName": "Demo Project",
+  "ownerWallet": "0x1111111111111111111111111111111111111111",
+  "website": "https://apeforge.fun/",
+  "x": "",
+  "telegram": "",
+  "techStack": [
+    "Node.js",
+    "MCP"
+  ],
+  "requestedCategory": "community",
+  "services": [
+    {
+      "name": "Demo public information service",
+      "description": "Fictional planned service only. Replace with factual details before applying.",
+      "protocol": "a2a",
+      "endpoint": "",
+      "pricing": "x402-usdc-base",
+      "unit": "per request",
+      "input": "A public information question",
+      "output": "A cited answer",
+      "support": "https://apeforge.fun/",
+      "status": "planned",
+      "pricingDetails": "Planned provider policy: x402 USDC on Base. No active endpoint or Forge settlement.",
+      "paymentOptions": [
+        {
+          "network": "eip155:8453",
+          "asset": "USDC",
+          "method": "x402",
+          "status": "planned",
+          "details": "Planned provider payment option only. No endpoint or payment execution is enabled."
+        }
+      ]
+    }
+  ]
+}
