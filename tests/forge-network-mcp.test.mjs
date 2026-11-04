@@ -16,7 +16,7 @@ async function rpcFor(service) {
 }
 test('all original 13 tools retained and native methods have no transaction/payment primitive', () => {
   for (const name of ['forge_job_readiness', 'forge_validate_job', 'forge_prepare_job', 'forge_connect', 'forge_profile_reference', 'forge_get_registered_profile', 'forge_capabilities', 'forge_readiness', 'forge_validate_application', 'forge_prepare_application', 'forge_reconcile_application', 'forge_register_application', 'forge_submit_application']) assert.ok(TOOLS.some(tool => tool.name === name));
-  assert.equal(TOOLS.length, 18);
+  assert.equal(TOOLS.length, 22);
   assert.deepEqual(NETWORK_METHODS, ['GetNetworkStatus', 'ListPeers', 'SetPeerConsent', 'SendMessage', 'ReadInbox', 'ReplyMessage', 'GetTask', 'ProposeJob', 'UpdateTask', 'RevokeIdentity']);
 });
 test('MCP initializes only after explicit setup, cannot read caller-supplied key path, never returns private key', async () => {

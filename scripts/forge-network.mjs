@@ -5,6 +5,7 @@ import { open, readFile, lstat, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { constants } from 'node:fs';
 import { pathToFileURL } from 'node:url';
+import { installListing } from './forge-listing.mjs';
 import { validateApplication } from './forge-application-model.mjs';
 
 export const NETWORK_URL = 'https://app.apeforge.fun/api/forge/v1/a2a-v1';
@@ -100,6 +101,7 @@ export function networkClient(identity, { fetcher = fetch } = {}) {
   }
   return {
     call,
+    ...installListing(call, { normalizeApplication, hash, canonicalJson }),
     async preview(application) {
       const normalized = normalizeApplication(application);
       const result = await call('PreviewApplication', { application: normalized });
@@ -135,7 +137,21 @@ export async function rotateIdentity(oldPath, newPath, operation, options = {}) 
   return { ...result, ...(result.code === 'network_unconfirmed' ? { reconcileMethod: 'GetRotationReceipt' } : {}), newPrincipal: newIdentity.principal, newPublicKey: newIdentity.publicKey, note: 'Retain both private key files. Reconcile this operation before further rotation. Acceptance and peer consent must be renewed; never infer successful rotation from a timeout.' };
 }
 
+async function listingMain(args) {
+  const [command, identityPath, applicationPath, revision, visibility, previewHash, operation] = args;
+  if (!identityPath) throw error('usage_listing_get_preview_update_receipt');
+  const client = networkClient(await loadIdentity(identityPath));
+  if (command === 'get' && args.length === 2) return client.getOwnListing();
+  if (command === 'receipt' && args.length === 3) return client.listingUpdateReceipt(applicationPath);
+  if (!['preview', 'update'].includes(command) || args.length !== (command === 'preview' ? 5 : 7) || !/^[1-9][0-9]{0,15}$/.test(revision)) throw error('usage_listing_get_preview_update_receipt');
+  const stat = await lstat(applicationPath);
+  if (!stat.isFile() || stat.size > 32768) throw error('application_too_large');
+  const application = JSON.parse(await readFile(applicationPath, 'utf8'));
+  const options = { expectedRevision: Number(revision), visibility, previewHash, operation, consent: command === 'update' };
+  return command === 'preview' ? client.previewListingUpdate(application, options) : client.updateListing(application, options);
+}
 async function main(args) {
+  if (args[0] === 'listing') return listingMain(args.slice(1));
   const [command, identityPath, applicationPath, consentHash, operation] = args;
   if (command === 'init' && identityPath && args.length === 2) return initializeIdentity(identityPath);
   if (command === 'rotate' && args.length === 4) return rotateIdentity(identityPath, applicationPath, consentHash);

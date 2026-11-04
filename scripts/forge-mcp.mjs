@@ -83,6 +83,10 @@ export function createService({ runGh = defaultGh, registry = registrationClient
     async previewEnrollment(args) { return (await nativeClient()).preview(args.application); },
     async submitEnrollment(args) { return (await nativeClient()).submit(args.application, { consent: args.publicProfileConsent, previewHash: args.previewHash, operation: args.operation }); },
     async enrollmentReceipt(args) { return (await nativeClient()).receipt(args.operation); },
+    async getOwnListing() { return (await nativeClient()).getOwnListing(); },
+    async previewListingUpdate(args) { return (await nativeClient()).previewListingUpdate(args.application, args); },
+    async updateListing(args) { return (await nativeClient()).updateListing(args.application, { ...args, consent: args.publicProfileConsent }); },
+    async listingUpdateReceipt(args) { return (await nativeClient()).listingUpdateReceipt(args.operation); },
     async networkCall(args) {
       if (!NETWORK_METHODS.includes(args.method) || !record(args.params) || !/^[a-f0-9]{32}$/.test(args.operation)) return problem('invalid_network_operation', 'Choose a documented network method, JSON parameters, and stable operation identifier.');
       if (args.authorize !== true) return problem('network_operation_consent_required', 'Authorize this exact network operation. Received jobs are proposals, never execution authority.');
@@ -179,7 +183,12 @@ const tool = (name, description, properties = {}, required = [], readOnlyHint = 
   annotations: { readOnlyHint, destructiveHint: false, idempotentHint: readOnlyHint, openWorldHint: !['forge_capabilities', 'forge_prepare_application', 'forge_validate_application', 'forge_profile_reference', 'forge_validate_job'].includes(name) }
 });
 export const NETWORK_METHODS = Object.freeze(['GetNetworkStatus', 'ListPeers', 'SetPeerConsent', 'SendMessage', 'ReadInbox', 'ReplyMessage', 'GetTask', 'ProposeJob', 'UpdateTask', 'RevokeIdentity']);
+const listingProperties = { application: applicationInput, expectedRevision: { type: 'integer', minimum: 1 }, visibility: { type: 'string', enum: ['listed', 'unlisted'] } };
 export const TOOLS = [
+  tool('forge_get_own_listing', 'Read your own full native listing, including an unlisted profile. Uses the existing protected applicant identity; no network acceptance required.'),
+  tool('forge_preview_listing_update', 'Preview a full validated own-profile/service replacement and listed/unlisted visibility. Wallet/category immutable. Present exact normalized profile, hash and consent statement.', listingProperties, ['application', 'expectedRevision', 'visibility']),
+  tool('forge_update_listing', 'Commit only the exact explicitly consented own native listing preview with revision CAS. Save operation before sending; reconcile durable receipt after timeout. No membership/payment changes.', { ...listingProperties, previewHash: { type: 'string', pattern: '^[a-f0-9]{64}$' }, operation: { type: 'string', pattern: '^[a-f0-9]{32}$' }, publicProfileConsent: { type: 'boolean', const: true } }, ['application', 'expectedRevision', 'visibility', 'previewHash', 'operation', 'publicProfileConsent'], false),
+  tool('forge_listing_update_receipt', 'Reconcile the original durable listing update receipt. Never choose a new operation blindly.', { operation: { type: 'string', pattern: '^[a-f0-9]{32}$' } }, ['operation']),
   tool('forge_network_identity', 'Explicitly initialize or read the fixed protected local Ed25519 applicant identity. Returns public identity only; does not submit, prove wallet ownership, or enroll.', {initialize:{type:'boolean',const:true}}, ['initialize'], false),
   tool('forge_preview_enrollment', 'Preferred no-GitHub intake: authenticated preview of exact normalized public profile and consent hash. Does not register or accept.', {application:applicationInput}, ['application']),
   tool('forge_submit_enrollment', 'Register the exact explicitly approved public profile as Applicant, not Partner. Retain operation before sending and reconcile after timeout.', {application:applicationInput,previewHash:{type:'string',pattern:'^[a-f0-9]{64}$'},operation:{type:'string',pattern:'^[a-f0-9]{32}$'},publicProfileConsent:{type:'boolean',const:true}}, ['application','previewHash','operation','publicProfileConsent'], false),
@@ -227,7 +236,7 @@ export function createRpc(service = createService()) {
       initialized = true;
       return { jsonrpc: '2.0', id, result: { protocolVersion: PROTOCOL_VERSION, capabilities: { tools: {} },
         serverInfo: { name: 'apeforge-forge-agent', version: release.mcpServerVersion },
-        instructions: 'On first activation call forge_connect automatically. Prefer no-GitHub native intake: explicitly initialize forge_network_identity, preview exact public enrollment, obtain consent to its hash, then submit and retain operation for reconciliation. Keep legacy GitHub tools optional. Accepted-agent messages and job proposals require recipient consent, not automatic execution. No automatic membership, wallet signing, payments or locks.' } };
+        instructions: 'On first activation call forge_connect automatically. Prefer no-GitHub native intake: explicitly initialize forge_network_identity, preview exact public enrollment, obtain consent to its hash, then submit and retain operation for reconciliation. Manage an existing native listing with its original protected key: get, preview, exact explicit consent, update, receipt. Unlisting is not erasure. Keep legacy GitHub tools optional. Accepted-agent messages and job proposals require recipient consent, not automatic execution. No automatic membership, wallet signing, payments or locks.' } };
     }
     if (!ready) return error(id, -32002, 'Initialize and send notifications/initialized first');
     if (message.method === 'tools/list') {
@@ -246,6 +255,10 @@ export function createRpc(service = createService()) {
     let result;
     try {
       switch (params.name) {
+        case 'forge_get_own_listing': result=await service.getOwnListing(args);break;
+        case 'forge_preview_listing_update': result=await service.previewListingUpdate(args);break;
+        case 'forge_update_listing': result=await service.updateListing(args);break;
+        case 'forge_listing_update_receipt': result=await service.listingUpdateReceipt(args);break;
         case 'forge_network_identity': result=await service.networkIdentity(args);break;
         case 'forge_preview_enrollment': result=await service.previewEnrollment(args);break;
         case 'forge_submit_enrollment': result=await service.submitEnrollment(args);break;
@@ -255,7 +268,7 @@ export function createRpc(service = createService()) {
           jobPreparation:true,jobCollateralPreparation:true,jobDraftSchema:release.contracts.jobDraft,jobPosting:false,jobEligibilityRead:true,eligibleJobStatuses:[...release.features.eligibleJobStatuses],mcpToolCount:TOOLS.length,kitVersion:KIT_VERSION,publicProfileSchema:PUBLIC_PROFILE_SCHEMA,applicationSchema:release.contracts.application,registryApiSchema:release.contracts.registryApi,markerPrefix:release.contracts.requestIdPrefix,registeredProfileRead:true,coreProfileReference:true,coreProfileRead:false,publicJobFeed:false,publicRevenueFeed:false,acpReadAdapter:false,
           repository: REPO_URL, requiresOwnGhAuth: false, legacyGitHubRequiresOwnGhAuth:true, nativeApplicationIntake:true, nativeIntakeLiveStatus:'query-server', requiresPublicConsent: true,
           registrationSupported:true, registrationAvailable:null, membershipAvailable:false, paymentAvailable:false, lockAvailable: false,
-          idempotency: 'stable-marker-best-effort-not-atomic', updateAvailable: false }; break;
+          idempotency: 'stable-marker-best-effort-not-atomic', updateAvailable: true, profileUpdate: true, listingManagement: true, serviceManagement: true, listingManagementScope: 'own-native-listing-only' }; break;
         case 'forge_job_readiness': result=await service.jobReadiness(args.agentId);break;
         case 'forge_validate_job': result=validateJob(args.draft);break;
         case 'forge_prepare_job': result=await service.prepareJob(args);break;

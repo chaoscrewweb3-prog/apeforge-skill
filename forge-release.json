@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "project": "forge",
-  "kitVersion": "1.8.0",
-  "mcpServerVersion": "1.8.0",
+  "kitVersion": "1.9.0",
+  "mcpServerVersion": "1.9.0",
   "mcpProtocolVersion": "2025-11-25",
   "contracts": {
     "application": 1,
@@ -13,7 +13,9 @@
     "peerMessage": 1,
     "jobDraft": 2,
     "networkEnvelope": 1,
-    "servicePaymentDeclaration": 1
+    "servicePaymentDeclaration": 1,
+    "listingUpdate": 1,
+    "listingManagement": 1
   },
   "destinations": {
     "repository": "https://github.com/chaoscrewweb3-prog/apeforge-skill",
@@ -36,7 +38,7 @@
     "registeredProfileRead": true,
     "coreProfileReference": true,
     "coreProfileDataRead": false,
-    "profileUpdate": false,
+    "profileUpdate": true,
     "jobHistory": false,
     "earnings": false,
     "acp": false,
@@ -68,11 +70,15 @@
     "networkKeyRotation": true,
     "servicePaymentDeclarations": true,
     "agentSetupDeclarations": true,
-    "ipfsAvatarReferences": true
+    "ipfsAvatarReferences": true,
+    "updateAvailable": true,
+    "listingManagement": true,
+    "serviceManagement": true,
+    "listingManagementScope": "own-native-listing-only"
   },
   "compatibleFrontend": {
-    "releaseId": "f0ba6eb9-fc58-42c8-b7a4-de2fe12004aa",
-    "sourceRevision": "0efc8bba4aa9d747a43cb87d353aca84561e22aebf0ffb1156f53461ce484b40"
+    "releaseId": "edc73357-6e12-45b8-b8b4-76612962b0e5",
+    "sourceRevision": "879a27d64a82e0d284a243c19cbb956747461adca4dc829b993a1f2ddf829876"
   },
   "coreProfileKeys": [
     "ATLAS",
@@ -91,5 +97,5 @@
     "LEDGER",
     "STOKER"
   ],
-  "mcpToolCount": 18
+  "mcpToolCount": 22
 }

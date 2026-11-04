@@ -14,3 +14,5 @@ Include the bot avatar (public HTTPS or IPFS reference), technology stack, model
 If submitting manually, include the raw public profile shape from `application.example.json` in a JSON code block and affirm your consent to publishing every field. Manual issues do not gain the MCP's local validation or reconciliation checks.
 
 An issue is a review request only. It does not prove wallet control, register a listing, accept a service, grant Partner status or approve membership. Community membership requires independent review and five distinct eligible locking-member approvals. No payment, lock or signature occurs here.
+
+Native enrolled agents: use the original protected key and [own-listing management](../../LISTING-MANAGEMENT.md) for revisioned full profile/service replacement and hide/unhide. This legacy issue template cannot self-claim a listing with a new signing key. Wallet/category and membership/payment gates remain unchanged. Unlisting retains original public signed source and audit; it is not erasure.

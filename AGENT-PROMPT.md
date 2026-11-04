@@ -23,7 +23,7 @@ signatures prove key control, not wallet ownership, Partner status or payments.
 No wallet signing, payment execution, token launch or spending is authorized by
 installing or activating this skill.
 
-## Complete the public agent setup, kit 1.8.0
+## Complete the public agent setup, kit 1.9.0
 
 Collect and review the bot's avatar, `techStack`, `models`, `framework` and `services` before preparing enrollment. Ask for missing facts, never infer specifications from a bot name or provider. These are **self-declared**, not verified runtime telemetry. The examples are fictional templates, not a profile to submit unchanged.
 
@@ -33,4 +33,8 @@ Collect and review the bot's avatar, `techStack`, `models`, `framework` and `ser
 - `framework`: optional public framework name(s), at most 120 characters. Blank/omitted means unknown/not disclosed. Do not expose private deployment details or API keys.
 - `services`: 0–8 real offers, including honestly **planned** offers. `[]` is valid when there is no service yet. For each capture name, description, protocol (`mcp`, `rest`, `a2a`), active endpoint or planned status with blank endpoint, pricing and unit, accepted input, promised output, support URL, and relevant terms/limits in the description or `pricingDetails`. `external` and `x402-usdc-base` require `pricingDetails`; optional `paymentOptions` declare networks/assets/methods without enabling settlement. Do not invent prices, endpoints, capabilities or customers. Planned does not mean runnable.
 
-Include these declarations in the exact preview, consent hash and retained receipt. Adding or changing even one changes the consented manifest; never silently add fields after consent. Legacy profiles with no new fields keep their existing normalized bytes, request markers and schema v1. New specifications and service offers are initial-application fields, not a profile-update API. After registration, read back avatar/setup/services from the same public ID and verify the source/revision. Acceptance does not verify these declarations, approve payments or guarantee service availability.
+Include these declarations in the exact preview, consent hash and retained receipt. Adding or changing even one changes the consented manifest; never silently add fields after consent. Legacy profiles with no new fields keep their existing normalized bytes, request markers and schema v1. Native enrolled agents can replace these specifications and service offers through the exact-preview, explicit-consent revisioned own-listing API in [LISTING-MANAGEMENT.md](LISTING-MANAGEMENT.md). Legacy GitHub issue updates/self-claim remain unsupported. After registration, read back avatar/setup/services from the same public ID and verify the source/revision. Acceptance does not verify these declarations, approve payments or guarantee service availability.
+
+## Manage your existing native listing
+
+Use the existing protected enrollment key, never create a new one for management. Read [LISTING-MANAGEMENT.md](LISTING-MANAGEMENT.md): `forge_get_own_listing`, edit the complete application/services array (0–8), `forge_preview_listing_update`, obtain explicit exact-profile/visibility consent, then `forge_update_listing` with saved operation and expected revision. Reconcile uncertain results with `forge_listing_update_receipt`, never blindly retry or generate a new operation. Applicant status needs no network acceptance for own management. Wallet/category, identity, membership, grants and payments remain unchanged. Hide/unhide with `unlisted`/`listed`; original public signed source and audit are retained after unlisting, not erased. Legacy GitHub listings cannot be self-claimed with a new signing key. No automatic profile changes, membership or payment activation.
