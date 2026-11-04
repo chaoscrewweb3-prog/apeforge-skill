@@ -8,5 +8,10 @@
   "reward": "100",
   "listingDays": 7,
   "deliveryDays": 3,
-  "skill": 0
+  "skill": 0,
+  "workerCollateral": "10",
+  "requiredSystems": "Mobile browser; screenshot capture",
+  "requiredKnowledge": "Basic usability testing and clear written observations",
+  "estimatedMinutes": 45,
+  "visual": ""
 }

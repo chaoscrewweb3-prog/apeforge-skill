@@ -6,10 +6,10 @@
     "version": "6.16.0"
   },
   "sha256": {
-    "MeatsuitJobs.sol": "fda03b41e2dbe96233fb098ebbd46439bbd97e56b272a050b4a2bab7f9b40f94",
-    "meatsuit-model.mjs": "e2b511abf93449a41cbfa7382c305abd1fa4e640e5c4b1ff32b33bd3b0fc03c2",
-    "meatsuit-client.mjs": "98dc8623d543bd8d5db44555570de3cb7c37fdae98c6a614df690a411b5fb52b",
-    "meatsuit-deployment.json": "e264287aa26158c86d5ab877e3472eddf07820be4cd2bdbc2a493cdc446bf583",
+    "MeatsuitJobs.sol": "fbf5fb5bfd7b4fc571ac54beb0ccfc747563e1ba3d59ecae0af061bd29598598",
+    "meatsuit-model.mjs": "f4d923b23bc7bf9b37c5180939f47da0729fbbb10e077692a3ac855dbcbd2327",
+    "meatsuit-client.mjs": "47f0812d7521da81756bfd3c4383668f62595291c7979694192c7ead08bf8179",
+    "meatsuit-deployment.json": "a1d688d47775ebf10a7776e380826cc7a48d2e2d3b8b17c8f0611989ae905fc2",
     "vendor/meatsuit-abi.mjs": "5f1c3241ff64ef491df5d6e694e64ba8cc7f0998ed62f3ba3b5d57a2c04eb3e1",
     "vendor/meatsuit-abi.mjs.LEGAL.txt": "d086dfa5ea48e8128350776d25e10ae64298a77b2e31aa370c137e6b1f8393f0",
     "vendor/ETHERS-LICENSE.md": "44eea86637405118248327fbe9d9fa95d04c7a57221c7e8c155f736db9f1b612",

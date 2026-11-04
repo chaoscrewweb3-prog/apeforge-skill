@@ -159,7 +159,7 @@ const tool = (name, description, properties = {}, required = [], readOnlyHint = 
 export const TOOLS = [
   tool('forge_job_readiness','Read fixed-origin authoritative status and wallet binding for job preparation. Never grants membership or posts.',{agentId:{type:'string',maxLength:25}},['agentId']),
   tool('forge_validate_job','Validate a job draft offline. Decimal-string APE reward; no public post or payment.',{draft:{type:'object'}},['draft']),
-  tool('forge_prepare_job','Prepare a recoverable local job intent and exact 5% fee/reward plan; check authoritative eligibility. Posting and transactions remain disabled.',{agentId:{type:'string',maxLength:25},draft:{type:'object'}},['agentId','draft']),
+  tool('forge_prepare_job','Prepare a recoverable local job intent and exact 5% fee/reward and separate worker-collateral plan; check authoritative eligibility. Posting and transactions remain disabled.',{agentId:{type:'string',maxLength:25},draft:{type:'object'}},['agentId','draft']),
   tool('forge_connect','Anonymous fixed-origin A2A discovery/nonce handshake with safe stage diagnostics. Not peer enrollment.',{protocolVersion:{type:'string',enum:['0.3.0','1.0']},diagnose:{type:'boolean'}}),
   tool('forge_profile_reference','Offline public profile route for a registered ID or known core:KEY; Core data retrieval is not implemented.',{id:{type:'string',maxLength:25}},['id']),
   tool('forge_get_registered_profile','Read one fixed-origin public registered profile. No credentials, Core API, endpoint execution or invented telemetry.',{id:{type:'string',pattern:'^g[0-9]{1,16}$'}},['id']),
@@ -219,7 +219,7 @@ export function createRpc(service = createService()) {
     try {
       switch (params.name) {
         case 'forge_capabilities': result = { ok: true, offlinePreparation: true, publicIssueIntake: true, a2aConnectivity:true, a2aV1Connectivity:true, publicDiagnostics:true, directPeerReference:true, centralPeerEnrollment:false, peerRelay:false, preServiceApplications:true, externalPricingDescriptions:true,
-          jobPreparation:true,jobPosting:false,jobEligibilityRead:true,eligibleJobStatuses:[...release.features.eligibleJobStatuses],mcpToolCount:TOOLS.length,kitVersion:KIT_VERSION,publicProfileSchema:PUBLIC_PROFILE_SCHEMA,applicationSchema:release.contracts.application,registryApiSchema:release.contracts.registryApi,markerPrefix:release.contracts.requestIdPrefix,registeredProfileRead:true,coreProfileReference:true,coreProfileRead:false,publicJobFeed:false,publicRevenueFeed:false,acpReadAdapter:false,
+          jobPreparation:true,jobCollateralPreparation:true,jobDraftSchema:release.contracts.jobDraft,jobPosting:false,jobEligibilityRead:true,eligibleJobStatuses:[...release.features.eligibleJobStatuses],mcpToolCount:TOOLS.length,kitVersion:KIT_VERSION,publicProfileSchema:PUBLIC_PROFILE_SCHEMA,applicationSchema:release.contracts.application,registryApiSchema:release.contracts.registryApi,markerPrefix:release.contracts.requestIdPrefix,registeredProfileRead:true,coreProfileReference:true,coreProfileRead:false,publicJobFeed:false,publicRevenueFeed:false,acpReadAdapter:false,
           repository: REPO_URL, requiresOwnGhAuth: true, requiresPublicConsent: true,
           registrationSupported:true, registrationAvailable:null, membershipAvailable:false, paymentAvailable:false, lockAvailable: false,
           idempotency: 'stable-marker-best-effort-not-atomic', updateAvailable: false }; break;

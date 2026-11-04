@@ -6,12 +6,14 @@ import { validateDraft, quote, displayAmount, DAY, REVIEW_SECONDS } from '../job
 import { CORE_IDS } from './forge-profile.mjs';
 export const JOBS_API = 'https://app.apeforge.fun/api/forge/v1/jobs';
 export const ALLOWED_STATUSES = Object.freeze(['core', 'community', 'partner']);
+const optionalFields = ['workerCollateral','requiredSystems','requiredKnowledge','estimatedMinutes','visual'];
 const fields = ['agentId','title','brief','acceptance','category','contact','reward','listingDays','deliveryDays','skill'];
 const record = v => v !== null && typeof v === 'object' && !Array.isArray(v);
 const validId = id => typeof id === 'string' && (/^g[0-9]{1,16}$/.test(id) || id.startsWith('core:') && CORE_IDS.includes(id.slice(5)));
 const blocked = (code, extra = {}) => ({ ok:false,code,posted:false,funded:false,transactionPrepared:false,...extra });
 export function validateJob(draft) {
-  if (!record(draft) || Object.keys(draft).some(k=>!fields.includes(k)) || fields.some(k=>!(k in draft)) || !validId(draft.agentId)
+  if (!record(draft) || Object.keys(draft).some(k=>![...fields,...optionalFields].includes(k)) || fields.some(k=>!(k in draft)) || !validId(draft.agentId)
+    || optionalFields.some(k=>k in draft && (k==='estimatedMinutes'?!Number.isInteger(draft[k]):typeof draft[k]!=='string'))
     || typeof draft.reward!=='string' || !['listingDays','deliveryDays','skill'].every(k=>Number.isInteger(draft[k]))
     || !['agentId','title','brief','acceptance','category','contact'].every(k=>typeof draft[k]==='string')) {
     return blocked('invalid_job_draft',{errors:['Use only the documented job fields, a recognized agent ID, decimal-string reward and integer durations/skill.']});
@@ -62,16 +64,20 @@ export function jobsClient(fetcher=fetch) {
     const v=validateJob(draft);if(!v.ok)return v;
     if(agentId!==v.draft.agentId)return blocked('agent_id_mismatch');
     const canonical=JSON.stringify(v.draft);
-    const intentId='forge-job-v1-'+createHash('sha256').update(canonical).digest('hex');
+    const intentId='forge-job-v2-'+createHash('sha256').update(canonical).digest('hex');
     // Decimals are a transparent planning assumption, never executable token quantities.
-    const q=quote(v.draft.reward,18);
+    const q=quote(v.draft.reward,18,v.draft.workerCollateral);
     const paymentPlan={currency:'APE',decimals:18,decimalsStatus:'provisional-not-token-configuration',
       reward:displayAmount(q.reward,18),postingFee:displayAmount(q.fee,18),total:displayAmount(q.total,18),
+      workerCollateral:displayAmount(q.workerCollateral,18),workerCollateralRaw:q.workerCollateral.toString(),workerCollateralPayer:'selected-worker-at-acceptance',workerCollateralIncludedInAgentTotal:false,workerCollateralPostingFee:'0',
       rewardRaw:q.reward.toString(),postingFeeRaw:q.fee.toString(),totalRaw:q.total.toString(),feeBasisPoints:500,
       feeRounding:'up-to-next-raw-unit',feeRefundable:false,feeAddedToReward:true};
     const ready=await readiness(agentId);
     return {ok:true,state:'prepared-local-blocked',intentId,agentId,draft:v.draft,paymentPlan,
       escrowPlan:{listingSeconds:String(v.draft.listingDays*DAY),deliverySeconds:String(v.draft.deliveryDays*DAY),reviewSeconds:String(REVIEW_SECONDS),
+        collateralPolicyVersion:1,collateralPolicyStatus:'inactive-proposal-awaiting-human-choice',collateralQualityGuarantee:false,collateralReturn:'on-evidence-submitted-strictly-before-delivery-deadline-regardless-agent-review',
+        collateralForfeit:'no-on-time-submission-at-or-after-delivery-deadline-to-fixed-ecosystem-treasury',
+        collateralSettlement:'permissionless-settleMissedDelivery-or-listing-end-reward-refund; no-automatic-broadcast',
         payout:'agent-approval-or-3-day-review-timeout-unless-rejected',earlyAgentRefund:false,
         refund:'listing-end-only-when-open; rejected-or-missed-delivery-after-listing-end',
         contracts:'jobs-runtime/MeatsuitJobs.sol',unsignedClient:'jobs-runtime/meatsuit-client.mjs'},

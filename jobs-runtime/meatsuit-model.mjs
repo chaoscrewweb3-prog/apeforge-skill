@@ -16,9 +16,11 @@ export function displayAmount(raw, decimals) {
   const base = 10n ** BigInt(decimals), fraction = (raw % base).toString().padStart(decimals, '0').replace(/0+$/, '');
   return (raw / base).toString() + (fraction ? '.' + fraction : '');
 }
-export function quote(value, decimals) {
+export function quote(value, decimals, collateralValue) {
   const reward = rawAmount(value, decimals), fee = reward / 20n + (reward % 20n ? 1n : 0n);
-  return {reward, fee, total: reward + fee};
+  const workerCollateral = collateralValue === undefined ? (reward + 9n) / 10n : rawAmount(collateralValue, decimals);
+  if (workerCollateral > reward) throw Error("Worker collateral must be positive and no greater than the reward.");
+  return {reward, fee, total: reward + fee, workerCollateral};
 }
 export function safeContact(value) {
   try { const u = new URL(value); return u.protocol === 'https:' && !u.username && !u.password && !u.hash && u.hostname.includes('.') && !/[\s\u0000-\u001f]/.test(value); } catch { return false; }
@@ -40,10 +42,24 @@ export function validateDraft(value) {
   if (!Number.isInteger(out.skill) || out.skill < 0 || out.skill > 2) errors.push('Choose a skill level.');
   out.reward = String(value?.reward ?? '').trim();
   try { rawAmount(out.reward, 18); } catch(e) { errors.push(e.message); }
+  // Additive draft-v2 metadata. Legacy drafts receive transparent preparation defaults.
+  for (const key of ['requiredSystems','requiredKnowledge']) {
+    out[key] = value?.[key] === undefined ? '' : String(value[key]).trim();
+    if (new TextEncoder().encode(out[key]).length > 500 || /[\u0000-\u001f\u007f]/.test(out[key])) errors.push(`${key}: use at most 500 UTF-8 bytes without control characters.`);
+  }
+  out.visual = value?.visual === undefined ? '' : String(value.visual).trim();
+  if (out.visual && (!safeContact(out.visual) || new TextEncoder().encode(out.visual).length > 240)) errors.push('visual: use a public HTTPS image URL of at most 240 bytes.');
+  out.estimatedMinutes = value?.estimatedMinutes === undefined ? 60 : value.estimatedMinutes;
+  if (!Number.isInteger(out.estimatedMinutes) || out.estimatedMinutes < 1 || out.estimatedMinutes > 43200) errors.push('estimatedMinutes: choose 1–43200 minutes.');
+  try {
+    if (value?.workerCollateral !== undefined && typeof value.workerCollateral !== 'string') throw Error('workerCollateral: use an exact decimal string.');
+    out.workerCollateral = value?.workerCollateral === undefined ? displayAmount(quote(out.reward,18).workerCollateral,18) : String(value.workerCollateral).trim();
+    quote(out.reward,18,out.workerCollateral);
+  } catch(e) { errors.push(e.message); }
   return {ok:errors.length === 0, errors, value:out};
 }
 export function deploymentReady(config) {
-  return config?.version === 1 && config.activationEnabled === true && Number.isSafeInteger(config.chainId) && config.chainId > 0 &&
+  return config?.version === 2 && config.collateralPolicyVersion === 1 && config.activationEnabled === true && Number.isSafeInteger(config.chainId) && config.chainId > 0 &&
     Number.isInteger(config.decimals) && config.decimals >= 0 && config.decimals <= 18 &&
     [config.token, config.escrow, config.treasury, config.eligibilityRegistry].every(v => address.test(v || '') && !/^0x0{40}$/i.test(v)) &&
     new Set([config.token, config.escrow, config.treasury, config.eligibilityRegistry].map(v=>v.toLowerCase())).size === 4 &&
@@ -62,6 +78,6 @@ export function filterJobs(jobs,{query='',skill='all',category='all',sort='newes
 }
 export function unsignedIntent(action, args, config) {
   if (!deploymentReady(config)) throw Error('APE escrow is not activated. No transaction has been prepared.');
-  if (!['post','nominate','accept','submit','approve','reject','refund','settleTimeout'].includes(action)) throw Error('Unsupported escrow action.');
+  if (!['post','nominate','accept','submit','approve','reject','refund','settleTimeout','settleMissedDelivery'].includes(action)) throw Error('Unsupported escrow action.');
   return {version:1,chainId:config.chainId,to:config.escrow,value:'0',function:action,args};
 }

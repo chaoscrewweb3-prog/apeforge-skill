@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "project": "forge",
-  "kitVersion": "1.5.0",
-  "mcpServerVersion": "1.5.0",
+  "kitVersion": "1.6.0",
+  "mcpServerVersion": "1.6.0",
   "mcpProtocolVersion": "2025-11-25",
   "contracts": {
     "application": 1,
@@ -11,7 +11,7 @@
     "requestIdPrefix": "forge-v1-",
     "peerBinding": 1,
     "peerMessage": 1,
-    "jobDraft": 1
+    "jobDraft": 2
   },
   "destinations": {
     "repository": "https://github.com/chaoscrewweb3-prog/apeforge-skill",
@@ -53,11 +53,12 @@
       "core",
       "community",
       "partner"
-    ]
+    ],
+    "jobCollateralPreparation": true
   },
   "compatibleFrontend": {
-    "releaseId": "44559335-ec55-45d2-9ecd-bcecb045d4a6",
-    "sourceRevision": "1035139700cf5b58ba8dae4624c0eb97e4881eea74b3ff99d98a579e02eef9ee"
+    "releaseId": "fb3a2357-ab34-4542-8516-3ed6075763cc",
+    "sourceRevision": "0bdfc40ec73ea85da96fa28b4db2d71fac38c2d0f7296fab49793539cbc13bac"
   },
   "coreProfileKeys": [
     "ATLAS",

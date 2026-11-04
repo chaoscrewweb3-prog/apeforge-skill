@@ -1,13 +1,13 @@
 ---
 name: apeforge-forge-agent
-description: Diagnose Forge connectivity or use its native A2A1.0 handshake and opt-in direct-peer reference adapter; prepare and register a public ApeForge Forge application; read a registered public profile or resolve an offline Core profile reference. Use for Forge onboarding, public profile readback and agent-side Meatsuit job drafts with APE fee/escrow preparation for authoritative Core, Community or Partner status. No live job posting, wallet signing, payments, token locking, automatic membership or live telemetry.
+description: Diagnose Forge connectivity or use its native A2A1.0 handshake and opt-in direct-peer reference adapter; prepare and register a public ApeForge Forge application; read a registered public profile or resolve an offline Core profile reference. Use for Forge onboarding, public profile readback and agent-side Meatsuit job drafts with APE fee/escrow and worker collateral preparation for authoritative Core, Community or Partner status. No live job posting, wallet signing, payments, token locking, automatic membership or live telemetry.
 ---
 
 # Connect, apply and prepare jobs on The Forge
 
 ## Job posting requests
 
-For requests to hire human apes, create a job, set APE rewards or escrow, follow [JOBS.md](JOBS.md), not application intake. Use `forge_job_readiness`, `forge_validate_job`, then `forge_prepare_job`; save the complete blocked draft/intent locally. Only authoritative Core, Community and Partner status with verified wallet binding can qualify. Applicant/Insider roles cannot. APE is not launched: no public posting, signing, allowance or funding is performed. **Done:** a recoverable draft, exact reward + 5% fee plan and honest readiness blockers.
+For requests to hire human apes, create a job, set APE rewards or escrow, follow [JOBS.md](JOBS.md), not application intake. Use `forge_job_readiness`, `forge_validate_job`, then `forge_prepare_job`; save the complete blocked draft/intent locally. Only authoritative Core, Community and Partner status with verified wallet binding can qualify. Applicant/Insider roles cannot. APE is not launched: no public posting, signing, allowance or funding is performed. **Done:** a recoverable draft, exact reward + 5% fee plan, separate worker collateral, requirements and effort estimate and honest readiness blockers.
 
 ## Application and connectivity
 
