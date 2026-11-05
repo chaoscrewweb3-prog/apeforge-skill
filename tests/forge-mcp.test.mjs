@@ -145,7 +145,7 @@ test('MCP lifecycle, tools and tool-level errors use JSON-RPC without executing 
   assert.equal((await rpc(req(3, 'initialize', { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'test', version: '1' } }))).result.protocolVersion, '2025-11-25');
   assert.equal(await rpc({ jsonrpc: '2.0', method: 'notifications/initialized' }), null);
   const listed = await rpc(req(4, 'tools/list'));
-  assert.equal(listed.result.tools.length, 22);
+  assert.equal(listed.result.tools.length, 26);
   for(const name of ['forge_capabilities','forge_readiness','forge_validate_application','forge_prepare_application','forge_reconcile_application','forge_register_application','forge_submit_application','forge_profile_reference','forge_get_registered_profile'])assert(listed.result.tools.some(t=>t.name===name));
   assert.equal((await rpc(req(5, 'tools/call', { name: 'run_shell', arguments: {} }))).error.code, -32602);
   const result = await rpc(req(6, 'tools/call', { name: 'forge_prepare_application', arguments: { application: sample } }));
@@ -212,10 +212,10 @@ test('timeout/provider failures return sanitized unknown, never echo diagnostics
   for(const error of [new DOMException('private diagnostic','TimeoutError'),new Error('Bearer SECRET')]){const result=await profileClient(async()=>{throw error;}).get('g123');assert.equal(result.code,'profile_unavailable');assert.equal(result.profileState,'unknown');assert(!JSON.stringify(result).includes('SECRET'));assert(!JSON.stringify(result).includes('private diagnostic'));}
 });
 
-test('actual stdio handshake advertises 1.9.0, twenty-two tools and separate schema/feature versions',async()=>{
+test('actual stdio handshake advertises 1.10.0, twenty-six tools and separate schema/feature versions',async()=>{
   const messages=[{jsonrpc:'2.0',id:1,method:'initialize',params:{protocolVersion:'2025-11-25',capabilities:{},clientInfo:{name:'test',version:'1'}}},{jsonrpc:'2.0',method:'notifications/initialized'},{jsonrpc:'2.0',id:2,method:'tools/list'},{jsonrpc:'2.0',id:3,method:'tools/call',params:{name:'forge_capabilities',arguments:{}}},{jsonrpc:'2.0',id:4,method:'tools/call',params:{name:'forge_profile_reference',arguments:{id:'core:MUSE'}}}];
   let out='';await startStdio(Readable.from(messages.map(v=>JSON.stringify(v)+'\n')),new Writable({write(chunk,encoding,done){out+=chunk;done();}}));const rows=out.trim().split('\n').map(JSON.parse);
-  assert.equal(rows[0].result.serverInfo.version,'1.9.0');assert.equal(rows[0].result.protocolVersion,'2025-11-25');assert.equal(rows[1].result.tools.length,22);const c=JSON.parse(rows[2].result.content[0].text);assert.equal(c.kitVersion,'1.9.0');assert.equal(c.applicationSchema,1);assert.equal(c.publicProfileSchema,1);assert.equal(c.coreProfileRead,false);assert.equal(c.publicJobFeed,false);assert.equal(c.publicRevenueFeed,false);assert.equal(c.acpReadAdapter,false);assert.equal(c.paymentAvailable,false);assert.equal(c.updateAvailable,true);assert.equal(JSON.parse(rows[3].result.content[0].text).dataRetrieval,'not_implemented');
+  assert.equal(rows[0].result.serverInfo.version,'1.10.0');assert.equal(rows[0].result.protocolVersion,'2025-11-25');assert.equal(rows[1].result.tools.length,26);const c=JSON.parse(rows[2].result.content[0].text);assert.equal(c.kitVersion,'1.10.0');assert.equal(c.applicationSchema,1);assert.equal(c.publicProfileSchema,1);assert.equal(c.coreProfileRead,false);assert.equal(c.publicJobFeed,false);assert.equal(c.publicRevenueFeed,false);assert.equal(c.acpReadAdapter,false);assert.equal(c.paymentAvailable,false);assert.equal(c.updateAvailable,true);assert.equal(JSON.parse(rows[3].result.content[0].text).dataRetrieval,'not_implemented');
 });
 test('native signed application sources are bound to the exact Forge ID and remain key-control-only',async()=>{
  const v=publicProfile();v.source={type:'forge-signed-application',url:'https://app.apeforge.fun/api/forge/v1/applications/g123',author:'a'+'1'.repeat(32),verified:'signing-key-control-only'};

@@ -83,6 +83,10 @@ export function createService({ runGh = defaultGh, registry = registrationClient
     async previewEnrollment(args) { return (await nativeClient()).preview(args.application); },
     async submitEnrollment(args) { return (await nativeClient()).submit(args.application, { consent: args.publicProfileConsent, previewHash: args.previewHash, operation: args.operation }); },
     async enrollmentReceipt(args) { return (await nativeClient()).receipt(args.operation); },
+    async getAvatarUploadStatus() { return (await nativeClient()).getAvatarUploadStatus(); },
+    async uploadAvatar(args) { return (await nativeClient()).uploadAvatar(args); },
+    async avatarUploadReceipt(args) { return (await nativeClient()).avatarUploadReceipt(args.operation); },
+    async previewAvatarUpdate(args) { return (await nativeClient()).previewAvatarUpdate(args.receipt); },
     async getOwnListing() { return (await nativeClient()).getOwnListing(); },
     async previewListingUpdate(args) { return (await nativeClient()).previewListingUpdate(args.application, args); },
     async updateListing(args) { return (await nativeClient()).updateListing(args.application, { ...args, consent: args.publicProfileConsent }); },
@@ -185,6 +189,10 @@ const tool = (name, description, properties = {}, required = [], readOnlyHint = 
 export const NETWORK_METHODS = Object.freeze(['GetNetworkStatus', 'ListPeers', 'SetPeerConsent', 'SendMessage', 'ReadInbox', 'ReplyMessage', 'GetTask', 'ProposeJob', 'UpdateTask', 'RevokeIdentity']);
 const listingProperties = { application: applicationInput, expectedRevision: { type: 'integer', minimum: 1 }, visibility: { type: 'string', enum: ['listed', 'unlisted'] } };
 export const TOOLS = [
+  tool('forge_avatar_upload_status', 'Authenticated own-listing IPFS pinning and readback health. No credentials, key initialization or listing mutation.'),
+  tool('forge_upload_avatar', 'Pin a public image for your existing Applicant, validate its canonical CID and verified byte readback. No listing update or enrollment. Static noninterlaced PNG only, max 16384 file bytes, dimensions at most2048 and1048576 pixels. Existing protected local signer only.', { bytesBase64: { type: 'string', maxLength: 21848 }, mediaType: { type: 'string', enum: ['image/png'] }, expectedRevision: { type: 'integer', minimum: 1 }, operation: { type: 'string', pattern: '^[a-f0-9]{32}$' } }, ['bytesBase64','mediaType','expectedRevision','operation'], false),
+  tool('forge_avatar_upload_receipt', 'Read the original durable avatar upload receipt after uncertainty. Save original operation and bytes/hash; no retry, listing write or enrollment.', { operation: { type: 'string', pattern: '^[a-f0-9]{32}$' } }, ['operation']),
+  tool('forge_preview_avatar_update', 'Preview only: re-fetch the authenticated durable receipt using receipt.avatarOperation, compare exact upload fields, then merge into the same own listing and revision. Present exact preview and obtain explicit consent before forge_update_listing. Never enroll a second Applicant.', { receipt: { type: 'object' } }, ['receipt']),
   tool('forge_get_own_listing', 'Read your own full native listing, including an unlisted profile. Uses the existing protected applicant identity; no network acceptance required.'),
   tool('forge_preview_listing_update', 'Preview a full validated own-profile/service replacement and listed/unlisted visibility. Wallet/category immutable. Present exact normalized profile, hash and consent statement.', listingProperties, ['application', 'expectedRevision', 'visibility']),
   tool('forge_update_listing', 'Commit only the exact explicitly consented own native listing preview with revision CAS. Save operation before sending; reconcile durable receipt after timeout. No membership/payment changes.', { ...listingProperties, previewHash: { type: 'string', pattern: '^[a-f0-9]{64}$' }, operation: { type: 'string', pattern: '^[a-f0-9]{32}$' }, publicProfileConsent: { type: 'boolean', const: true } }, ['application', 'expectedRevision', 'visibility', 'previewHash', 'operation', 'publicProfileConsent'], false),
@@ -255,6 +263,10 @@ export function createRpc(service = createService()) {
     let result;
     try {
       switch (params.name) {
+        case 'forge_avatar_upload_status': result=await service.getAvatarUploadStatus(args);break;
+        case 'forge_upload_avatar': result=await service.uploadAvatar(args);break;
+        case 'forge_avatar_upload_receipt': result=await service.avatarUploadReceipt(args);break;
+        case 'forge_preview_avatar_update': result=await service.previewAvatarUpdate(args);break;
         case 'forge_get_own_listing': result=await service.getOwnListing(args);break;
         case 'forge_preview_listing_update': result=await service.previewListingUpdate(args);break;
         case 'forge_update_listing': result=await service.updateListing(args);break;
@@ -268,7 +280,7 @@ export function createRpc(service = createService()) {
           jobPreparation:true,jobCollateralPreparation:true,jobDraftSchema:release.contracts.jobDraft,jobPosting:false,jobEligibilityRead:true,eligibleJobStatuses:[...release.features.eligibleJobStatuses],mcpToolCount:TOOLS.length,kitVersion:KIT_VERSION,publicProfileSchema:PUBLIC_PROFILE_SCHEMA,applicationSchema:release.contracts.application,registryApiSchema:release.contracts.registryApi,markerPrefix:release.contracts.requestIdPrefix,registeredProfileRead:true,coreProfileReference:true,coreProfileRead:false,publicJobFeed:false,publicRevenueFeed:false,acpReadAdapter:false,
           repository: REPO_URL, requiresOwnGhAuth: false, legacyGitHubRequiresOwnGhAuth:true, nativeApplicationIntake:true, nativeIntakeLiveStatus:'query-server', requiresPublicConsent: true,
           registrationSupported:true, registrationAvailable:null, membershipAvailable:false, paymentAvailable:false, lockAvailable: false,
-          idempotency: 'stable-marker-best-effort-not-atomic', updateAvailable: true, profileUpdate: true, listingManagement: true, serviceManagement: true, listingManagementScope: 'own-native-listing-only' }; break;
+          idempotency: 'stable-marker-best-effort-not-atomic', updateAvailable: true, profileUpdate: true, listingManagement: true, serviceManagement: true, avatarUpload: true, avatarUploadMaxBytes: 16384, listingManagementScope: 'own-native-listing-only' }; break;
         case 'forge_job_readiness': result=await service.jobReadiness(args.agentId);break;
         case 'forge_validate_job': result=validateJob(args.draft);break;
         case 'forge_prepare_job': result=await service.prepareJob(args);break;

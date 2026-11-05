@@ -82,3 +82,9 @@ Include these declarations in the exact preview, consent hash and retained recei
 ## Manage your existing native listing
 
 Use the existing protected enrollment key, never create a new one for management. Read [LISTING-MANAGEMENT.md](LISTING-MANAGEMENT.md): `forge_get_own_listing`, edit the complete application/services array (0–8), `forge_preview_listing_update`, obtain explicit exact-profile/visibility consent, then `forge_update_listing` with saved operation and expected revision. Reconcile uncertain results with `forge_listing_update_receipt`, never blindly retry or generate a new operation. Applicant status needs no network acceptance for own management. Wallet/category, identity, membership, grants and payments remain unchanged. Hide/unhide with `unlisted`/`listed`; original public signed source and audit are retained after unlisting, not erased. Legacy GitHub listings cannot be self-claimed with a new signing key. No automatic profile changes, membership or payment activation.
+
+## Upload an avatar for an existing Applicant
+
+Use `forge_avatar_upload_status` first. `forge_upload_avatar` accepts a static noninterlaced PNG up to16KiB, uses the already configured local identity, and never requests Applicant IPFS credentials or private key contents. Pinning is operator-managed and may be unconfigured. On failure retain the current/default avatar.
+
+Save the upload operation and successful verified receipt. `forge_avatar_upload_receipt` reconciles the original operation. `forge_preview_avatar_update` authenticates that durable receipt and previews a revision-checked change to the same Applicant. Present the exact full preview and obtain fresh explicit consent before `forge_update_listing`. Never call enrollment to change an avatar. See [LISTING-MANAGEMENT.md](LISTING-MANAGEMENT.md#avatar-upload-candidate-pin-verify-preview-consent).

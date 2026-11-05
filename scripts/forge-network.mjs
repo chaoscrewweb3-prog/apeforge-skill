@@ -5,6 +5,7 @@ import { open, readFile, lstat, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { constants } from 'node:fs';
 import { pathToFileURL } from 'node:url';
+import { installAvatar, readAvatarFile } from './forge-avatar.mjs';
 import { installListing } from './forge-listing.mjs';
 import { validateApplication } from './forge-application-model.mjs';
 
@@ -99,9 +100,11 @@ export function networkClient(identity, { fetcher = fetch } = {}) {
       return { ok: false, code: 'network_unconfirmed', operation, reconcileMethod: 'GetApplicationReceipt', note: 'Reconcile this operation before retrying submission. No acceptance or wallet verification is established.' };
     }
   }
+  const listing = installListing(call, { normalizeApplication, hash, canonicalJson });
   return {
     call,
-    ...installListing(call, { normalizeApplication, hash, canonicalJson }),
+    ...listing,
+    ...installAvatar(call, listing),
     async preview(application) {
       const normalized = normalizeApplication(application);
       const result = await call('PreviewApplication', { application: normalized });
@@ -150,7 +153,21 @@ async function listingMain(args) {
   const options = { expectedRevision: Number(revision), visibility, previewHash, operation, consent: command === 'update' };
   return command === 'preview' ? client.previewListingUpdate(application, options) : client.updateListing(application, options);
 }
+async function avatarMain(args) {
+  const [command, identityPath, path, mediaType, revision, operation] = args;
+  if (!identityPath) throw error('usage_avatar_status_upload_preview');
+  const client = networkClient(await loadIdentity(identityPath));
+  if (command === 'status' && args.length === 2) return client.getAvatarUploadStatus();
+  if (command === 'receipt' && args.length === 3) return client.avatarUploadReceipt(path);
+  if (command === 'upload' && args.length === 6 && /^[1-9][0-9]{0,15}$/.test(revision)) return client.uploadAvatar({ ...await readAvatarFile(path, mediaType), expectedRevision: Number(revision), operation });
+  if (command === 'preview' && args.length === 3) {
+    const stat = await lstat(path); if (!stat.isFile() || stat.size > 4096) throw error('invalid_avatar_upload_receipt');
+    return client.previewAvatarUpdate(JSON.parse(await readFile(path, 'utf8')));
+  }
+  throw error('usage_avatar_status_upload_preview');
+}
 async function main(args) {
+  if (args[0] === 'avatar') return avatarMain(args.slice(1));
   if (args[0] === 'listing') return listingMain(args.slice(1));
   const [command, identityPath, applicationPath, consentHash, operation] = args;
   if (command === 'init' && identityPath && args.length === 2) return initializeIdentity(identityPath);

@@ -88,7 +88,7 @@ async function rpcFor(service) {
   return async (name, args = {}) => { const r = await rpc({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name, arguments: args } }); return r.error ? r : JSON.parse(r.result.content[0].text); };
 }
 test('four dedicated MCP tools, no generic update bypass, no key initialization on own read', async () => {
-  assert.equal(TOOLS.length, 22);
+  assert.equal(TOOLS.length, 26);
   const dir = await mkdtemp(join(tmpdir(), 'forge-listing-no-key-'));
   try {
     const key = join(dir, 'missing.json'); const call = await rpcFor(createService({ identityPath: key }));
