@@ -1,19 +1,21 @@
+import {validateOtherRaster,EXT,serverMediaUri} from './forge-avatar-formats.mjs';
 import {inflateSync} from 'node:zlib';
 import {createHash} from 'node:crypto';
 import {ForgeError} from './forge-contract.mjs';
 import {exact,hex} from './forge-network-auth.mjs';
 export const AVATAR_METHODS=new Set(['GetAvatarUploadStatus','UploadAvatar','GetAvatarUploadReceipt']);
-export const MAX_AVATAR_BYTES=16384;
-export const MEDIA_TYPES=['image/png'];
+export const MAX_AVATAR_BYTES=1048576;
+export const MEDIA_TYPES=['image/png','image/jpeg','image/gif'];
 const digest=b=>createHash('sha256').update(b).digest('hex');
 export function rawCid(sha256){let bits=0,value=0,out='b';for(const byte of Buffer.concat([Buffer.from([1,0x55,0x12,0x20]),Buffer.from(sha256,'hex')])){value=(value<<8)|byte;bits+=8;while(bits>=5){out+='abcdefghijklmnopqrstuvwxyz234567'[(value>>>(bits-5))&31];bits-=5;}}if(bits)out+='abcdefghijklmnopqrstuvwxyz234567'[(value<<(5-bits))&31];return out;}
 // Sniff actual raster structure, not caller extension or Content-Type. No SVG/HTML/GIF.
 export function validateImage(p){
  exact(p,['mediaType','bytesBase64','sha256','expectedRevision']);
  if(!Number.isSafeInteger(p.expectedRevision)||p.expectedRevision<1)throw new ForgeError('invalid_revision',422);
- if(!MEDIA_TYPES.includes(p.mediaType)||typeof p.bytesBase64!=='string'||p.bytesBase64.length>21848||!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(p.bytesBase64))throw new ForgeError('invalid_avatar_type',422);
+ if(!MEDIA_TYPES.includes(p.mediaType)||typeof p.bytesBase64!=='string'||p.bytesBase64.length>1398104||!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(p.bytesBase64))throw new ForgeError('invalid_avatar_type',422);
  const b=Buffer.from(p.bytesBase64,'base64');if(!b.length||b.length>MAX_AVATAR_BYTES)throw new ForgeError('avatar_size_exceeded',413);
  if(b.toString('base64')!==p.bytesBase64||typeof p.sha256!=='string'||!/^[a-f0-9]{64}$/.test(p.sha256)||digest(b)!==p.sha256)throw new ForgeError('avatar_hash_mismatch',422);
+ if(p.mediaType!=='image/png'){validateOtherRaster(b,p.mediaType);return {bytes:b,cid:rawCid(p.sha256)};}
  let w=0,h=0,depth=0,color=0,parts=[],palette=false,ended=false,idatEnded=false;
  const bad=()=>{throw new ForgeError('invalid_avatar_image',422);};
  if(b.length<45||!b.subarray(0,8).equals(Buffer.from('89504e470d0a1a0a','hex')))bad();
@@ -35,9 +37,9 @@ export function validateImage(p){
  return {bytes:b,cid:rawCid(p.sha256)};
 }
 export function installAvatarUploads(store,{provider=null}={}){
- const db=store.db;let busy=0;db.exec('CREATE TABLE IF NOT EXISTS native_avatar_uploads(agent TEXT NOT NULL,operation TEXT NOT NULL,intent TEXT NOT NULL,response TEXT NOT NULL,at INTEGER NOT NULL,PRIMARY KEY(agent,operation))');
+ const db=store.db;const server=!provider;let busy=0;db.exec('CREATE TABLE IF NOT EXISTS native_avatar_media(hash TEXT PRIMARY KEY,media_type TEXT NOT NULL,bytes BLOB NOT NULL,at INTEGER NOT NULL)');db.exec('CREATE TABLE IF NOT EXISTS native_avatar_uploads(agent TEXT NOT NULL,operation TEXT NOT NULL,intent TEXT NOT NULL,response TEXT NOT NULL,at INTEGER NOT NULL,PRIMARY KEY(agent,operation))');
  const own=principal=>{const a=db.prepare('SELECT * FROM native_agents WHERE principal=?').get(principal);if(!a)throw new ForgeError('not_found',404);if(a.status==='suspended')throw new ForgeError('applicant_unavailable',403);if(a.identity_revoked||db.prepare('SELECT 1 FROM native_retired WHERE principal=?').get(principal))throw new ForgeError('identity_revoked',403);return a;};
- function status(a){let h=store.control('avatar-upload-health');if(!provider)h={pinning:'unconfigured',retrieval:'unconfigured',checkedAt:null};else if(!h||Date.parse(h.checkedAt)<store.clock()-300000)h={pinning:'unknown',retrieval:'unknown',checkedAt:h?.checkedAt||null};return{ok:true,id:a.id,...h,maxBytes:MAX_AVATAR_BYTES,mediaTypes:MEDIA_TYPES,available:!!provider};}
+ function status(a){if(server)return{ok:true,id:a.id,storage:'server',storageStatus:'ready',retrieval:Date.parse(store.control('avatar-server-readback')?.checkedAt||'')>=store.clock()-300000?(store.control('avatar-server-readback')?.retrieval||'unknown'):'unknown',retrievalScope:'local-stored-byte-readback',checkedAt:store.control('avatar-server-readback')?.checkedAt||null,maxBytes:MAX_AVATAR_BYTES,mediaTypes:MEDIA_TYPES,available:true,public:true,quotaBytes:67108864,usedBytes:db.prepare('SELECT COALESCE(SUM(length(bytes)),0) n FROM native_avatar_media').get().n};let h=store.control('avatar-upload-health');if(!provider)h={pinning:'unconfigured',retrieval:'unconfigured',checkedAt:null};else if(!h||Date.parse(h.checkedAt)<store.clock()-300000)h={pinning:'unknown',retrieval:'unknown',checkedAt:h?.checkedAt||null};return{ok:true,id:a.id,...h,maxBytes:MAX_AVATAR_BYTES,mediaTypes:MEDIA_TYPES,available:!!provider};}
  async function dispatch(e,intent){
   let a,old,image,pending;const at=store.clock();db.exec('BEGIN IMMEDIATE');try{
    a=own(e.principal);db.prepare('DELETE FROM native_nonces WHERE at<?').run(at-120000);db.prepare('DELETE FROM native_rates WHERE window<?').run(Math.floor(at/60000)-2);
@@ -52,8 +54,7 @@ export function installAvatarUploads(store,{provider=null}={}){
     if(r){if(r.intent!==intent)throw new ForgeError('operation_conflict',409);old=JSON.parse(r.response);}
     else{
      if(a.revision!==e.params.expectedRevision)throw new ForgeError('revision_conflict',409);
-     if(!provider){old={...status(a),ok:false,code:'avatar_pinning_unconfigured'};}
-     else{if(busy>=2)throw new ForgeError('avatar_capacity',429);
+     {if(busy>=2)throw new ForgeError('avatar_capacity',429);
       const since=at-86400000;if(db.prepare('SELECT COUNT(*) n FROM native_avatar_uploads WHERE agent=? AND at>?').get(a.id,since).n>=5||db.prepare('SELECT COUNT(*) n FROM native_avatar_uploads WHERE at>?').get(since).n>=100)throw new ForgeError('avatar_upload_quota',429);
       pending={ok:false,code:'avatar_upload_pending',id:a.id,operation:e.operation,note:'Query the original upload receipt. No listing has been changed.'};
       db.prepare('INSERT INTO native_avatar_uploads VALUES(?,?,?,?,?)').run(a.id,e.operation,intent,JSON.stringify(pending),at);busy++;
@@ -64,12 +65,12 @@ export function installAvatarUploads(store,{provider=null}={}){
   if(old){await store.checkpoint();return old;}
   try{
    await store.checkpoint();let pinning='unknown',retrieval='unknown',result;
-   try{const beforePin=own(e.principal);if(beforePin.id!==a.id||beforePin.revision!==e.params.expectedRevision)throw new ForgeError('revision_conflict',409);const pinned=await provider.pin(image.bytes,e.params.mediaType,image.cid);if(pinned!==image.cid)throw Error('pin_mismatch');pinning='healthy';const beforeRead=own(e.principal);if(beforeRead.id!==a.id||beforeRead.revision!==e.params.expectedRevision)throw new ForgeError('revision_conflict',409);const back=await provider.retrieve(image.cid);if(!Buffer.isBuffer(back)||!back.equals(image.bytes))throw Error('readback_mismatch');retrieval='healthy';
+   try{const beforePin=own(e.principal);if(beforePin.id!==a.id||beforePin.revision!==e.params.expectedRevision)throw new ForgeError('revision_conflict',409);let pinned;if(server){db.exec('BEGIN IMMEDIATE');try{const existing=db.prepare('SELECT hash FROM native_avatar_media WHERE hash=?').get(e.params.sha256);if(!existing){const used=db.prepare('SELECT COALESCE(SUM(length(bytes)),0) n FROM native_avatar_media').get().n;if(used+image.bytes.length>67108864)throw new ForgeError('avatar_storage_quota',429);db.prepare('INSERT INTO native_avatar_media VALUES(?,?,?,?)').run(e.params.sha256,e.params.mediaType,image.bytes,store.clock());}db.exec('COMMIT');pinned=image.cid;}catch(error){if(db.isTransaction)db.exec('ROLLBACK');throw error;}}else pinned=await provider.pin(image.bytes,e.params.mediaType,image.cid);if(pinned!==image.cid)throw Error('pin_mismatch');pinning='healthy';const beforeRead=own(e.principal);if(beforeRead.id!==a.id||beforeRead.revision!==e.params.expectedRevision)throw new ForgeError('revision_conflict',409);const back=server?Buffer.from(db.prepare('SELECT bytes FROM native_avatar_media WHERE hash=?').get(e.params.sha256).bytes):await provider.retrieve(image.cid);if(!Buffer.isBuffer(back)||!back.equals(image.bytes))throw Error('readback_mismatch');retrieval='healthy';
     const current=own(e.principal);if(current.id!==a.id||current.revision!==e.params.expectedRevision)throw new ForgeError('revision_conflict',409);
-    result={ok:true,id:a.id,expectedRevision:e.params.expectedRevision,uri:'ipfs://'+image.cid,sha256:e.params.sha256,mediaType:e.params.mediaType,size:image.bytes.length,verified:true,pinning,retrieval};
-   }catch(error){if(!['revision_conflict','identity_revoked','not_found','applicant_unavailable'].includes(error.code)){if(pinning!=='healthy')pinning='unhealthy';else if(retrieval!=='healthy')retrieval='unhealthy';}result={ok:false,code:error instanceof ForgeError?error.code:pinning==='unhealthy'?'avatar_pinning_failed':'avatar_readback_failed',id:a.id,operation:e.operation,pinning,retrieval,note:'No listing has changed. Keep the current/default avatar.'};}
-   db.exec('BEGIN IMMEDIATE');try{store.control('avatar-upload-health',{pinning,retrieval,checkedAt:store.now()});db.prepare('UPDATE native_avatar_uploads SET response=? WHERE agent=? AND operation=?').run(JSON.stringify(result),a.id,e.operation);db.exec('COMMIT');}catch(error){if(db.isTransaction)db.exec('ROLLBACK');throw error;}await store.checkpoint();return result;
+    result={ok:true,id:a.id,expectedRevision:e.params.expectedRevision,uri:server?serverMediaUri(e.params.sha256,e.params.mediaType):'ipfs://'+image.cid,sha256:e.params.sha256,mediaType:e.params.mediaType,size:image.bytes.length,verified:true,...(server?{storage:'server',storageStatus:'healthy',retrieval,retrievalScope:'local-stored-byte-readback'}:{pinning,retrieval})};
+   }catch(error){if(!['revision_conflict','identity_revoked','not_found','applicant_unavailable'].includes(error.code)){if(pinning!=='healthy')pinning='unhealthy';else if(retrieval!=='healthy')retrieval='unhealthy';}result={ok:false,code:error instanceof ForgeError?error.code:server?'avatar_storage_failed':pinning==='unhealthy'?'avatar_pinning_failed':'avatar_readback_failed',id:a.id,operation:e.operation,...(server?{storage:'server',storageStatus:'unhealthy',retrieval,retrievalScope:'local-stored-byte-readback'}:{pinning,retrieval}),note:'No listing has changed. Keep the current/default avatar.'};}
+   db.exec('BEGIN IMMEDIATE');try{if(server)store.control('avatar-server-readback',{retrieval,checkedAt:store.now()});if(!server)store.control('avatar-upload-health',{pinning,retrieval,checkedAt:store.now()});db.prepare('UPDATE native_avatar_uploads SET response=? WHERE agent=? AND operation=?').run(JSON.stringify(result),a.id,e.operation);db.exec('COMMIT');}catch(error){if(db.isTransaction)db.exec('ROLLBACK');throw error;}await store.checkpoint();return result;
   }finally{busy--;}
  }
- return {dispatch,status};
+ return {dispatch,status,media(hash,extension){if(typeof hash!=='string'||!/^([a-f0-9]{64})$/.test(hash)||!['png','jpg','gif'].includes(extension))throw new ForgeError('not_found',404);const row=db.prepare('SELECT media_type,bytes FROM native_avatar_media WHERE hash=?').get(hash);if(!row||extension!==EXT[row.media_type])throw new ForgeError('not_found',404);const bytes=Buffer.from(row.bytes);if(digest(bytes)!==hash)throw new ForgeError('media_integrity_failed',503);return{bytes,mediaType:row.media_type};}};
 }

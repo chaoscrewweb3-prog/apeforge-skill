@@ -1,0 +1,19 @@
+import {ForgeError} from './forge-contract.mjs';
+export const EXT={'image/png':'png','image/jpeg':'jpg','image/gif':'gif'};
+export const serverMediaUri=(hash,type)=>`https://app.apeforge.fun/api/forge/v1/media/${hash}.${EXT[type]}`;
+const bad=()=>{throw new ForgeError('invalid_avatar_image',422);};
+function dimensions(w,h){if(!w||!h||w>2048||h>2048||w*h>1048576)bad();}
+// Structural JPEG verification, not a full entropy decoder. Reject unsupported
+// arithmetic/hierarchical modes, malformed segments, trailing payload and truncation.
+function jpeg(b){if(b.length<16||b[0]!==255||b[1]!==216)bad();let p=2,frame=false,scan=false,ended=false,components=0;
+ while(p<b.length){if(b[p++]!==255)bad();while(b[p]===255)p++;const marker=b[p++];if(marker===217){if(p!==b.length||!frame||!scan)bad();ended=true;break;}if(!marker||marker===216||marker===1||(marker>=208&&marker<=215))bad();if(p+2>b.length)bad();const n=b.readUInt16BE(p);if(n<2||p+n>b.length)bad();const start=p+2,end=p+n;
+ if([192,193,194].includes(marker)){if(frame||n<11||b[start]!==8)bad();dimensions(b.readUInt16BE(start+3),b.readUInt16BE(start+1));components=b[start+5];if(![1,3,4].includes(components)||n!==8+3*components)bad();const ids=new Set();for(let q=start+6;q<end;q+=3){if(ids.has(b[q])||!(b[q+1]>>4)||!(b[q+1]&15)||(b[q+1]>>4)>4||(b[q+1]&15)>4||b[q+2]>3)bad();ids.add(b[q]);}frame=true;}
+ else if(marker>=192&&marker<=207&&![196].includes(marker))bad();
+ if(marker===218){if(!frame||n<8||b[start]<1||b[start]>components||n!==6+2*b[start])bad();scan=true;p=end;let consumed=0;while(p<b.length){if(b[p++]!==255){consumed++;continue;}while(b[p]===255)p++;if(p>=b.length)bad();if(b[p]===0){p++;consumed++;continue;}if(b[p]>=208&&b[p]<=215){p++;continue;}p--;break;}if(!consumed)bad();continue;}p=end;
+ }if(!ended)bad();}
+function gif(b){if(b.length<14||!['GIF87a','GIF89a'].includes(b.toString('ascii',0,6)))bad();const w=b.readUInt16LE(6),h=b.readUInt16LE(8);dimensions(w,h);let p=13,frames=0,pixels=0;if(b[10]&128)p+=3*(1<<((b[10]&7)+1));if(p>b.length)bad();
+ function blocks(){const out=[];while(p<b.length){const n=b[p++];if(!n)return Buffer.concat(out);if(p+n>b.length)bad();out.push(b.subarray(p,p+n));p+=n;}bad();}
+ while(p<b.length){const tag=b[p++];if(tag===59){if(p!==b.length||!frames)bad();return;}if(tag===33){if(p>=b.length)bad();const label=b[p++];if(label===249){if(b[p++]!==4||p+5>b.length||b[p]&224||((b[p]>>2)&7)>3||b[p+4]!==0)bad();p+=5;}else{if(![254,255,1].includes(label))bad();blocks();}continue;}if(tag!==44||p+9>b.length)bad();const x=b.readUInt16LE(p),y=b.readUInt16LE(p+2),fw=b.readUInt16LE(p+4),fh=b.readUInt16LE(p+6),flags=b[p+8];dimensions(fw,fh);if(x+fw>w||y+fh>h||flags&24||++frames>100||(pixels+=fw*fh)>16777216)bad();p+=9;let colors=b[10]&128?1<<((b[10]&7)+1):0;if(flags&128){colors=1<<((flags&7)+1);p+=3*colors;}if(!colors||p>=b.length)bad();const min=b[p++];if(min<2||min>8)bad();lzw(blocks(),min,fw*fh,colors);
+ }bad();}
+function lzw(data,min,expected,colors){let bit=0,size=min+1,next=(1<<min)+2,previous=null,count=0,ended=false;const clear=1<<min,end=clear+1;let dict=[];function reset(){dict=Array.from({length:clear},(_,i)=>[i]);size=min+1;next=end+1;previous=null;}reset();function code(){if(bit+size>data.length*8)bad();let v=0;for(let k=0;k<size;k++,bit++)v|=((data[bit>>3]>>(bit&7))&1)<<k;return v;}if(code()!==clear)bad();while(bit+size<=data.length*8){const c=code();if(c===clear){reset();continue;}if(c===end){ended=true;break;}let word=dict[c];if(!word&&c===next&&previous)word=[...previous,previous[0]];if(!word||word.some(v=>v>=colors)||(count+=word.length)>expected)bad();if(previous&&next<4096){dict[next++]=[...previous,word[0]];if(next===(1<<size)&&size<12)size++;}previous=word;}if(!ended||count!==expected||Math.ceil(bit/8)!==data.length)bad();}
+export function validateOtherRaster(b,type){if(type==='image/jpeg')jpeg(b);else if(type==='image/gif')gif(b);else bad();}

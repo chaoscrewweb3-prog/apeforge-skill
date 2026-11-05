@@ -21,7 +21,7 @@ function fixture(mutate = r => r) {
     let result={ok:true,id:'g1',revision:2,visibility:'unlisted',networkStatus:'pending',application};
     if(e.method==='UploadAvatar')result=success;
     if(e.method==='GetAvatarUploadReceipt')result=e.params.operation===operation?success:{ok:false,code:'avatar_upload_not_found'};
-    if(e.method==='GetAvatarUploadStatus')result={ok:true,id:'g1',pinning:'healthy',retrieval:'healthy',available:true,checkedAt:new Date().toISOString(),maxBytes:16384,mediaTypes:['image/png']};
+    if(e.method==='GetAvatarUploadStatus')result={ok:true,id:'g1',pinning:'healthy',retrieval:'healthy',available:true,checkedAt:new Date().toISOString(),maxBytes:1048576,mediaTypes:['image/png','image/jpeg','image/gif']};
     if(e.method==='PreviewListingUpdate')result={ok:true,id:'g1',...e.params,previewHash:hash({domain:'forge-listing-update-v1',agentId:'g1',...e.params}),consentStatement:LISTING_CONSENT,expiresAt:new Date(Date.now()+3600000).toISOString()};
     result=mutate(result,e);
     return new Response(JSON.stringify({jsonrpc:'2.0',id:e.operation,result:{message:{role:'ROLE_AGENT',messageId:'reply',contextId:e.operation,parts:[{data:result}]}}}));
@@ -42,7 +42,7 @@ for(const [key,value] of [['id','g2'],['expectedRevision',3],['uri','ipfs://bafy
   await assert.rejects(client.uploadAvatar(input));assert.equal(calls.some(e=>e.method==='UpdateListing'),false);
 });
 test('invalid bytes/type/size/revision/operation reject before transport',async()=>{
-  const {client,calls}=fixture();for(const change of [{bytesBase64:'AAAA'},{bytesBase64:bytesBase64+'='},{mediaType:'image/svg+xml'},{mediaType:'image/jpeg'},{mediaType:'image/webp'},{bytesBase64:Buffer.alloc(16385).toString('base64')},{expectedRevision:0},{operation:'bad'}])await assert.rejects(client.uploadAvatar({...input,...change}));assert.equal(calls.length,0);
+  const {client,calls}=fixture();for(const change of [{bytesBase64:'AAAA'},{bytesBase64:bytesBase64+'='},{mediaType:'image/svg+xml'},{mediaType:'image/jpeg'},{mediaType:'image/webp'},{bytesBase64:Buffer.alloc(1048577).toString('base64')},{expectedRevision:0},{operation:'bad'}])await assert.rejects(client.uploadAvatar({...input,...change}));assert.equal(calls.length,0);
 });
 test('upload revision conflict does not pin or update; failure keeps current/default avatar',async()=>{
   const stale=fixture();assert.equal((await stale.client.uploadAvatar({...input,expectedRevision:1})).code,'revision_conflict');assert.deepEqual(stale.calls.map(e=>e.method),['GetOwnListing']);
@@ -79,7 +79,7 @@ test('health distinguishes provider configuration from verified readback health'
   const unknown=fixture((r,e)=>e.method==='GetAvatarUploadStatus'?{...r,retrieval:'unknown',pinning:'unknown',available:true}:r);assert.equal((await unknown.client.getAvatarUploadStatus()).retrieval,'unknown');
 });
 test('bounded regular-file read rejects oversize and symlink without arbitrary MCP paths',async()=>{
-  const dir=await mkdtemp(join(tmpdir(),'forge-avatar-'));try{const path=join(dir,'avatar.png');await writeFile(path,bytes);assert.deepEqual(await readAvatarFile(path,'image/png'),{bytesBase64,mediaType:'image/png'});await symlink(path,join(dir,'link'));await assert.rejects(readAvatarFile(join(dir,'link'),'image/png'));await writeFile(path,Buffer.alloc(16385));await assert.rejects(readAvatarFile(path,'image/png'));}finally{await rm(dir,{recursive:true,force:true});}
+  const dir=await mkdtemp(join(tmpdir(),'forge-avatar-'));try{const path=join(dir,'avatar.png');await writeFile(path,bytes);assert.deepEqual(await readAvatarFile(path,'image/png'),{bytesBase64,mediaType:'image/png'});await symlink(path,join(dir,'link'));await assert.rejects(readAvatarFile(join(dir,'link'),'image/png'));await writeFile(path,Buffer.alloc(1048577));await assert.rejects(readAvatarFile(path,'image/png'));}finally{await rm(dir,{recursive:true,force:true});}
   const upload=TOOLS.find(t=>t.name==='forge_upload_avatar');assert.equal(upload.annotations.readOnlyHint,false);assert.equal(upload.inputSchema.properties.path,undefined);assert.equal(upload.inputSchema.properties.privateKey,undefined);
 });
 test('MCP has dedicated upload/health/preview and rejects target IDs, file paths or generic avatar calls',async()=>{

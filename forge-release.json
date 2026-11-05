@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "project": "forge",
-  "kitVersion": "1.10.0",
-  "mcpServerVersion": "1.10.0",
+  "kitVersion": "1.11.0",
+  "mcpServerVersion": "1.11.0",
   "mcpProtocolVersion": "2025-11-25",
   "contracts": {
     "application": 1,
@@ -78,11 +78,14 @@
     "listingManagementScope": "own-native-listing-only",
     "avatarUpload": true,
     "avatarUploadLiveStatus": "query-server",
-    "avatarPinning": "requires-operator-backend",
-    "avatarReadback": "exact-operator-node-bytes",
+    "avatarPinning": "not-used-by-default",
+    "avatarReadback": "exact-local-stored-bytes",
     "avatarUploadFormats": [
-      "image/png"
-    ]
+      "image/png",
+      "image/jpeg",
+      "image/gif"
+    ],
+    "avatarStorage": "server"
   },
   "compatibleFrontend": {
     "releaseId": "edc73357-6e12-45b8-b8b4-76612962b0e5",

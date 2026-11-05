@@ -6,7 +6,7 @@ export function exact(x,required,optional=[]){if(!x||typeof x!=='object'||Array.
 export function bounded(x,max,min=1){if(typeof x!=='string'||x.length<min||x.length>max||/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(x))throw new ForgeError('invalid_text');return x;}
 export const hex=x=>typeof x==='string'&&/^[a-f0-9]{32}$/.test(x);
 export function authenticate(e,now){
- if(Buffer.byteLength(JSON.stringify(e)??'')>32768)throw new ForgeError('body_too_large',413);
+ if(Buffer.byteLength(JSON.stringify(e)??'')>(e?.method==='UploadAvatar'?1400000:32768))throw new ForgeError('body_too_large',413);
  exact(e,['version','method','principal','publicKey','issuedAt','nonce','operation','params','signature']);
  if(e.version!==1||typeof e.method!=='string'||!/^[A-Za-z]{1,32}$/.test(e.method)||!Number.isSafeInteger(e.issuedAt)||Math.abs(now/1000-e.issuedAt)>60||!hex(e.nonce)||!hex(e.operation)||typeof e.publicKey!=='string'||!/^[A-Za-z0-9_-]{50,100}$/.test(e.publicKey)||typeof e.signature!=='string'||!/^[A-Za-z0-9_-]{86}$/.test(e.signature))throw new ForgeError('invalid_envelope',401);
  let key,der;try{der=Buffer.from(e.publicKey,'base64url');key=createPublicKey({key:der,format:'der',type:'spki'});if(key.asymmetricKeyType!=='ed25519'||key.export({format:'der',type:'spki'}).toString('base64url')!==e.publicKey)throw Error();}catch{throw new ForgeError('invalid_key',401);}

@@ -22,6 +22,7 @@ export const PROTOCOL_VERSION = release.mcpProtocolVersion;
 export const KIT_VERSION = release.kitVersion;
 const MAX_BODY = 32768;
 const MAX_LINE = 65536;
+const UPLOAD_LINE = 1400000;
 const execFile = promisify(execFileCallback);
 const record = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const byteLength = value => Buffer.byteLength(value, 'utf8');
@@ -189,8 +190,8 @@ const tool = (name, description, properties = {}, required = [], readOnlyHint = 
 export const NETWORK_METHODS = Object.freeze(['GetNetworkStatus', 'ListPeers', 'SetPeerConsent', 'SendMessage', 'ReadInbox', 'ReplyMessage', 'GetTask', 'ProposeJob', 'UpdateTask', 'RevokeIdentity']);
 const listingProperties = { application: applicationInput, expectedRevision: { type: 'integer', minimum: 1 }, visibility: { type: 'string', enum: ['listed', 'unlisted'] } };
 export const TOOLS = [
-  tool('forge_avatar_upload_status', 'Authenticated own-listing IPFS pinning and readback health. No credentials, key initialization or listing mutation.'),
-  tool('forge_upload_avatar', 'Pin a public image for your existing Applicant, validate its canonical CID and verified byte readback. No listing update or enrollment. Static noninterlaced PNG only, max 16384 file bytes, dimensions at most2048 and1048576 pixels. Existing protected local signer only.', { bytesBase64: { type: 'string', maxLength: 21848 }, mediaType: { type: 'string', enum: ['image/png'] }, expectedRevision: { type: 'integer', minimum: 1 }, operation: { type: 'string', pattern: '^[a-f0-9]{32}$' } }, ['bytesBase64','mediaType','expectedRevision','operation'], false),
+  tool('forge_avatar_upload_status', 'Authenticated own-listing server storage and local byte-readback status. No credentials, key initialization or listing mutation.'),
+  tool('forge_upload_avatar', 'Upload a public image for your existing Applicant and verify its hash-bound receipt. No listing update or enrollment. Public server-hosted PNG, GIF (including animation), or JPEG, max 1048576 file bytes, dimensions at most 2048 and 1048576 pixels. Existing protected local signer only.', { bytesBase64: { type: 'string', maxLength: 1398104 }, mediaType: { type: 'string', enum: ['image/png','image/jpeg','image/gif'] }, expectedRevision: { type: 'integer', minimum: 1 }, operation: { type: 'string', pattern: '^[a-f0-9]{32}$' } }, ['bytesBase64','mediaType','expectedRevision','operation'], false),
   tool('forge_avatar_upload_receipt', 'Read the original durable avatar upload receipt after uncertainty. Save original operation and bytes/hash; no retry, listing write or enrollment.', { operation: { type: 'string', pattern: '^[a-f0-9]{32}$' } }, ['operation']),
   tool('forge_preview_avatar_update', 'Preview only: re-fetch the authenticated durable receipt using receipt.avatarOperation, compare exact upload fields, then merge into the same own listing and revision. Present exact preview and obtain explicit consent before forge_update_listing. Never enroll a second Applicant.', { receipt: { type: 'object' } }, ['receipt']),
   tool('forge_get_own_listing', 'Read your own full native listing, including an unlisted profile. Uses the existing protected applicant identity; no network acceptance required.'),
@@ -280,7 +281,7 @@ export function createRpc(service = createService()) {
           jobPreparation:true,jobCollateralPreparation:true,jobDraftSchema:release.contracts.jobDraft,jobPosting:false,jobEligibilityRead:true,eligibleJobStatuses:[...release.features.eligibleJobStatuses],mcpToolCount:TOOLS.length,kitVersion:KIT_VERSION,publicProfileSchema:PUBLIC_PROFILE_SCHEMA,applicationSchema:release.contracts.application,registryApiSchema:release.contracts.registryApi,markerPrefix:release.contracts.requestIdPrefix,registeredProfileRead:true,coreProfileReference:true,coreProfileRead:false,publicJobFeed:false,publicRevenueFeed:false,acpReadAdapter:false,
           repository: REPO_URL, requiresOwnGhAuth: false, legacyGitHubRequiresOwnGhAuth:true, nativeApplicationIntake:true, nativeIntakeLiveStatus:'query-server', requiresPublicConsent: true,
           registrationSupported:true, registrationAvailable:null, membershipAvailable:false, paymentAvailable:false, lockAvailable: false,
-          idempotency: 'stable-marker-best-effort-not-atomic', updateAvailable: true, profileUpdate: true, listingManagement: true, serviceManagement: true, avatarUpload: true, avatarUploadMaxBytes: 16384, listingManagementScope: 'own-native-listing-only' }; break;
+          idempotency: 'stable-marker-best-effort-not-atomic', updateAvailable: true, profileUpdate: true, listingManagement: true, serviceManagement: true, avatarUpload: true, avatarUploadMaxBytes: 1048576, listingManagementScope: 'own-native-listing-only' }; break;
         case 'forge_job_readiness': result=await service.jobReadiness(args.agentId);break;
         case 'forge_validate_job': result=validateJob(args.draft);break;
         case 'forge_prepare_job': result=await service.prepareJob(args);break;
@@ -319,6 +320,7 @@ export async function startStdio(input = process.stdin, output = process.stdout)
       let message;
       try { message = JSON.parse(line.toString('utf8')); }
       catch { send({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error' } }); return; }
+      if(line.length>MAX_LINE && !(message?.method==='tools/call'&&message.params?.name==='forge_upload_avatar')){send({jsonrpc:'2.0',id:message?.id??null,error:{code:-32700,message:'Message exceeds size limit'}});return;}
       send(await rpc(message));
     }).catch(() => send({ jsonrpc: '2.0', id: null, error: { code: -32603, message: 'Internal error' } })).finally(() => queued--);
   };
@@ -330,7 +332,7 @@ export async function startStdio(input = process.stdin, output = process.stdout)
       const end = newline === -1 ? data.length : newline;
       const part = data.subarray(offset, end);
       if (!oversized) {
-        if (pending.length + part.length > MAX_LINE) { oversized = true; pending = Buffer.alloc(0); }
+        if (pending.length + part.length > UPLOAD_LINE) { oversized = true; pending = Buffer.alloc(0); }
         else pending = Buffer.concat([pending, part]);
       }
       if (newline !== -1) {
